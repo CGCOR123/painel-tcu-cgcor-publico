@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitoramento de Processos TCU | SOF</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.2/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.4/dist/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.mjs" type="module"></script>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#172033;--muted:#667085;--line:#e4e8f0;--blue:#2563eb;--cyan:#06b6d4;--green:#10b981;--orange:#f59e0b;--red:#ef4444;--purple:#7c3aed;--shadow:0 10px 30px rgba(15,23,42,.08)}
+*{box-sizing:border-box}
+body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:linear-gradient(180deg,#eef5ff 0,#f7f9fc 190px,#f5f7fb 100%);color:var(--text)}
+.container{max-width:1550px;margin:auto;padding:26px}
+.hero{background:linear-gradient(120deg,#0f3d91,#2563eb 58%,#06b6d4);color:#fff;border-radius:24px;padding:26px 88px 26px 30px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.report-icon{position:absolute;right:24px;top:22px;z-index:3;width:48px;height:48px;border-radius:14px;border:1px solid rgba(255,255,255,.35);background:rgba(255,255,255,.16);color:#fff;font-size:23px;cursor:pointer;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(7px);box-shadow:0 8px 20px rgba(0,0,0,.12);transition:.2s}
+.report-icon:hover{transform:translateY(-2px);background:rgba(255,255,255,.26)}
+.report-icon:disabled{opacity:.55;cursor:wait;transform:none}
+.report-icon-label{position:absolute;right:20px;top:74px;z-index:3;font-size:10px;opacity:.88;white-space:nowrap}
+.hero:after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;background:rgba(255,255,255,.08);right:-70px;top:-90px}
+.hero h1{margin:0;font-size:30px;letter-spacing:-.02em}
+.hero p{margin:8px 0 0;opacity:.9}
+.hero-meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.badge{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:12px;font-weight:700;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+.btn{border:0;border-radius:12px;padding:11px 15px;font-weight:700;cursor:pointer;background:#fff;color:#24324a;box-shadow:0 3px 12px rgba(15,23,42,.08);border:1px solid #e6eaf0}
+.btn.primary{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn.pdf{background:#fff3f2;color:#b42318;border-color:#ffd9d5}
+.btn.excel{background:#edfdf6;color:#027a48;border-color:#c7f0dd}
+input[type=file]{display:none}
+.grid-kpi{display:grid;grid-template-columns:repeat(6,minmax(150px,1fr));gap:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:17px;box-shadow:var(--shadow)}
+.kpi .label{color:var(--muted);font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.kpi .value{font-size:30px;font-weight:800;margin-top:7px}
+.kpi .sub{font-size:12px;color:var(--muted);margin-top:5px}
+.section{margin-top:18px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow)}
+.panel h2{margin:0 0 14px;font-size:17px}
+.filters{display:grid;grid-template-columns:2fr repeat(6,1fr);gap:10px}
+.filter label{display:block;font-size:11px;color:var(--muted);font-weight:800;margin:0 0 5px}
+.filter input,.filter select{width:100%;padding:10px 11px;border:1px solid #dbe1ea;border-radius:10px;background:#fff;color:#25334d;outline:none}
+.editable-select{min-width:145px;padding:7px 8px;border:1px solid #dbe1ea;border-radius:9px;background:#fff;color:#25334d;font-size:12px;font-weight:700}.auto-hint{display:block;margin-top:5px;font-size:10px;color:#98a2b3;max-width:180px}.assessment-box{background:#f8fbff;border:1px solid #dbeafe;border-radius:14px;padding:14px;margin:14px 0}.assessment-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.assessment-grid label{display:block;font-size:11px;font-weight:800;color:#667085;margin-bottom:5px;text-transform:uppercase}.assessment-grid select,.assessment-grid textarea{width:100%;padding:10px;border:1px solid #dbe1ea;border-radius:10px;background:#fff}.assessment-grid textarea{min-height:90px;resize:vertical}.assessment-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.charts{display:grid;grid-template-columns:1.15fr 1fr 1fr;gap:14px}
+.chartbox{height:300px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px}
+table{width:100%;border-collapse:collapse;min-width:1200px}
+th{position:sticky;top:0;background:#f8fafc;color:#475467;font-size:11px;text-transform:uppercase;letter-spacing:.03em;text-align:left;padding:12px;border-bottom:1px solid var(--line);z-index:1}
+td{padding:12px;border-bottom:1px solid #edf0f5;font-size:13px;vertical-align:top}
+tr:hover td{background:#f8fbff}
+.proc{font-weight:800;color:#174ea6;white-space:nowrap;cursor:pointer}
+.tag{display:inline-block;padding:4px 8px;border-radius:999px;font-size:11px;font-weight:800;white-space:nowrap}
+.tag.blue{background:#e8f0ff;color:#1d4ed8} .tag.green{background:#e8f8f1;color:#067647} .tag.orange{background:#fff4e5;color:#b54708} .tag.red{background:#feeceb;color:#b42318} .tag.gray{background:#f2f4f7;color:#475467} .tag.purple{background:#f1eafe;color:#6941c6}
+.muted{color:var(--muted)} .small{font-size:12px}
+.note{max-width:280px}
+.subject{min-width:320px;max-width:520px}
+.pager{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:10px}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;padding:20px;z-index:20}
+.modal.show{display:flex}
+.modal-card{background:#fff;border-radius:20px;max-width:900px;width:100%;max-height:85vh;overflow:auto;padding:24px;box-shadow:0 25px 60px rgba(0,0,0,.2)}
+.modal-card h3{margin-top:0;font-size:22px}
+.detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.detail{background:#f8fafc;border-radius:12px;padding:12px}
+.detail b{display:block;font-size:11px;color:#667085;text-transform:uppercase;margin-bottom:5px}
+.pauta-new{background:#ecfdf3;color:#027a48;border-color:#abefc6}
+.pauta-removed{background:#fef3f2;color:#b42318;border-color:#fecdca}
+tr.row-removed td{background:#fff1f0!important}
+tr.row-removed td:first-child{border-left:4px solid #d92d20}
+tr.row-removed .proc{color:#b42318!important;font-weight:900}
+.risk-critical{background:#fee4e2!important;color:#b42318!important;border-color:#fecdca!important}
+.risk-high{background:#fff4e5!important;color:#b54708!important;border-color:#fedf89!important}
+.risk-medium{background:#fffbea!important;color:#854a0e!important;border-color:#fde68a!important}
+.risk-low{background:#eff8ff!important;color:#175cd3!important;border-color:#b2ddff!important}
+.risk-none{background:#f2f4f7!important;color:#475467!important;border-color:#d0d5dd!important}
+.sof-intel{border:1px solid #d6e4ff;background:linear-gradient(135deg,#f8fbff,#f0fdf9);border-radius:16px;padding:16px;margin:14px 0}
+.sof-intel h4{margin:0 0 8px;font-size:15px}
+.sof-score{font-size:28px;font-weight:900;letter-spacing:-1px}
+.compact-check{display:flex;gap:8px;align-items:flex-start;margin:8px 0;font-size:13px}
+.intel-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}
+.intel-field label{display:block;font-size:11px;font-weight:800;color:#475467;text-transform:uppercase;letter-spacing:.04em;margin-bottom:5px}
+.intel-field input,.intel-field select,.intel-field textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:9px;padding:9px;background:white;color:#101828;font:inherit}
+.intel-field textarea{min-height:72px;resize:vertical}
+.intel-field.full{grid-column:1/-1}
+.intel-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.mission-btn{background:linear-gradient(135deg,#0b4a6f,#1570ef)!important;color:#fff!important;border:none!important;font-weight:900!important;box-shadow:0 8px 20px rgba(21,112,239,.22)}
+.mission-btn:hover{transform:translateY(-1px);box-shadow:0 10px 24px rgba(21,112,239,.30)}
+tr.priority-on-agenda td{background:#ecfdf3!important}
+tr.priority-on-agenda td:first-child{border-left:5px solid #039855}
+.priority-star{font-size:15px}
+.intel-summary{border-left:4px solid #175cd3;background:#f5faff;padding:12px;border-radius:8px;margin-top:12px}
+@media(max-width:760px){.intel-form{grid-template-columns:1fr}.intel-field.full{grid-column:auto}}
+
+
+.pauta-current{background:#eff8ff;color:#175cd3;border-color:#b2ddff}
+.pauta-old{background:#f2f4f7;color:#475467;border-color:#d0d5dd}
+.alert{padding:12px 14px;border-radius:12px;background:#fffaeb;border:1px solid #fedf89;color:#7a2e0e;font-size:12px;margin-top:12px}
+.footer{text-align:center;color:#7b8495;font-size:12px;padding:24px}
+@media(max-width:1150px){.grid-kpi{grid-template-columns:repeat(3,1fr)}.charts{grid-template-columns:1fr}.filters{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:650px){.container{padding:12px}.grid-kpi{grid-template-columns:repeat(2,1fr)}.filters{grid-template-columns:1fr}.hero h1{font-size:23px}}
+
+.tcu-extra{margin:12px 0;padding:15px;border:1px solid #cbd5e1;border-radius:12px;background:#f8fafc}
+.tcu-extra h4{margin:0 0 10px;color:#17315c}
+.tcu-extra-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.tcu-extra-grid label{display:block;font-size:11px;font-weight:700;color:#475569;margin-bottom:4px}
+.tcu-extra-grid input,.tcu-extra-grid textarea{width:100%;box-sizing:border-box;padding:8px;border:1px solid #cbd5e1;border-radius:7px;background:white;color:#182335}
+.tcu-extra-grid textarea{min-height:66px;resize:vertical}
+.tcu-extra-grid .wide{grid-column:1/-1}
+.tcu-extra-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+@media(max-width:650px){.tcu-extra-grid{grid-template-columns:1fr}.tcu-extra-grid .wide{grid-column:auto}}
+
+/* V9: cabeçalho direito e área do relatório executivo preservados */
+@media(max-width:780px){.hero{padding:98px 18px 22px}.report-icon{right:18px;top:16px}.report-icon-label{right:12px;top:70px}.hero h1{font-size:23px}}
+.auto-monitor{background:#fff;border:1px solid #dbe6f4;border-radius:16px;padding:16px;margin:14px 0;box-shadow:0 5px 18px rgba(15,23,42,.04)}
+.auto-monitor h2{font-size:16px;margin:0 0 8px}.auto-monitor .monitor-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:12px}.auto-monitor .monitor-stat{background:#f6f9ff;border-radius:10px;padding:12px}.auto-monitor .monitor-stat strong{display:block;font-size:20px;color:#175cd3}.auto-monitor .monitor-stat span{font-size:11px;color:#667085}.auto-monitor ul{margin:10px 0 0;padding-left:22px;font-size:12px;line-height:1.6}
+@media(max-width:700px){.auto-monitor .monitor-grid{grid-template-columns:1fr}}
+</style>
+
+<style>
+.triage-panel{margin:16px 0;padding:18px;background:#fff;border:1px solid #d0ddeb;border-radius:14px;box-shadow:0 2px 10px #15294b0a}
+.triage-panel h2{margin:0 0 7px;font-size:18px;color:#163c76}
+.triage-kpis{display:flex;gap:12px;flex-wrap:wrap;margin:13px 0}
+.triage-kpis span{background:#f0f5fc;padding:9px 12px;border-radius:9px;font-size:12px}
+.triage-kpis b{font-size:17px;color:#164b9b}
+.triage-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.triage-actions button{padding:7px 11px;border:1px solid #bccce1;border-radius:7px;background:white;cursor:pointer}
+.triage-actions .approve{background:#e7f6eb;border-color:#91cba1;color:#17602a}
+.triage-actions .reject{background:#fff0ee;border-color:#e8b5af;color:#9e3027}
+.triage-item{border-top:1px solid #e5eaf1;padding:13px 0}
+.triage-item p{margin:5px 0;font-size:12px;line-height:1.5}
+.triage-item .muted{font-size:11px}
+.triage-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0}
+.triage-toolbar select,.triage-toolbar input{border:1px solid #cad5e5;padding:8px;border-radius:7px;max-width:100%}
+</style>
+<style>[hidden]{display:none!important}</style></head>
+<body>
+<div class="container">
+  <div class="hero">
+    <button class="report-icon" id="reportPdfBtn" title="Gerar relatório executivo em PDF" aria-label="Gerar relatório executivo em PDF">📑</button>
+    <span class="report-icon-label">Relatório executivo</span>
+    <h1>Monitoramento Estratégico de Processos do TCU</h1>
+    <p>Secretaria de Orçamento Federal · Base prioritária + pautas públicas e base de acompanhamento</p>
+    <div class="hero-meta">
+      <span class="badge">📌 Base SOF: importação local</span>
+      <span class="badge">🏛️ Pauta TCU: importação local</span>
+      <span class="badge">🔄 Deduplicação por nº do processo</span>
+      <span class="badge">💾 Novos uploads ficam salvos neste navegador</span>
+    </div>
+  </div>
+
+<section id="piModule" style="margin:22px 0;background:#fff;border:1px solid #dce5e3;border-radius:18px;padding:22px;color:#183b37">
+<style>#piModule button,#piModule select{cursor:pointer;border:1px solid #cbdad6;background:white;border-radius:8px;padding:8px;color:inherit}#piModule a{color:#09654f;font-weight:700}#piModule small{display:block;color:#64748b;margin-top:5px}#piMetrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}.piMetric{text-align:left;border-top:3px solid #10745d!important}.piMetric b{display:block;font-size:24px}.piMetric.active{background:#e4f2ed!important}.piGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px}.piPanel{border:1px solid #dce5e3;border-radius:10px;padding:14px;max-height:310px;overflow:auto}.piPanel p{font-size:13px;border-bottom:1px solid #eee;padding-bottom:8px}.piBar{display:block;width:100%;text-align:left;margin:4px 0}.piBar b{float:right}.piBar span{display:block;height:5px;background:#10745d;border-radius:5px;margin-top:5px}#piModule table{width:100%;border-collapse:collapse;font-size:13px}#piModule td,#piModule th{padding:12px;text-align:left;border-bottom:1px solid #dce5e3;vertical-align:top}</style>
+<h2>Inteligência Processual — Pesquisa Integrada do TCU</h2><p id="piStatus"></p><p>Importação manual diária • somente CSV público do TCU • alterações de campos, não histórico oficial de tramitação. Triagem e Excel/PDF ficam neste navegador; não publique dados internos.</p><div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:15px"><label>Importar CSV oficial <input type="file" id="piFile" accept=".csv"></label><button id="piPublish">Gerar base pública para publicação</button><a href="https://github.com/CGCOR123/painel-tcu-cgcor-publico/upload/main/dados" target="_blank" rel="noopener noreferrer">Publicar no GitHub</a><button id="piBackup">Exportar backup do histórico</button></div><div id="piMetrics"></div><h3>Novidades desde a última importação</h3><div class="piGrid"><div class="piPanel"><b>Novos registros identificados</b><div id="piNew"></div></div><div class="piPanel"><b>Alterações de campos</b><div id="piChanges"></div></div></div><h3>Perfil dos processos abertos</h3><div class="piGrid"><div class="piPanel"><b>Por relator</b><div id="piRel"></div></div><div class="piPanel"><b>Por tipo</b><div id="piTipos"></div></div></div><h3>Consulta processual</h3><input id="piSearch" placeholder="Número, assunto, relator, unidade..." style="width:100%;padding:12px;border:1px solid #cbdad6;border-radius:8px"><p id="piCount"></p><div style="overflow:auto"><table><thead><tr><th>Processo</th><th>Assunto e unidades</th><th>Relator e estado</th><th>Triagem local</th></tr></thead><tbody id="piRows"></tbody></table></div><button id="piPrev">Anterior</button> <button id="piNext">Próxima</button><p><small>Unidades classificadas por menções no campo de jurisdicionados; categorias podem se sobrepor. Triagem não altera a base institucional.</small></p></section>
+
+  <div class="toolbar"><button class="btn" onclick="generateExecutivePdf()">Relatório da base local</button>
+    <label class="btn pdf">📄 Importar pauta PDF<input id="pdfInput" type="file" accept="application/pdf"></label>
+    <label class="btn excel">📊 Importar planilha Excel<input id="xlsxInput" type="file" accept=".xlsx,.xls"></label>
+    <button class="btn primary" id="saveStagedBtn" disabled>💾 Salvar alterações <span id="stagedCount"></span></button>
+    <button class="btn" id="cancelStagedBtn" disabled>Cancelar prévia</button>
+    <button class="btn" id="refreshPublicBtn">🌐 Consultar base pública</button>
+    <button class="btn" id="exportBtn">⬇ Exportar CSV filtrado</button>
+    <button class="btn" id="resetBtn">↺ Remover dados importados</button>
+    <button class="btn" id="resetAssessBtn">↺ Restaurar avaliações SOF</button>
+    <button class="btn" id="restoreDeletedBtn">🗂 Restaurar processos excluídos <span id="deletedCount"></span></button>
+    <button class="btn mission-btn" id="priorityAgendaBtn">🎯 PRIORITÁRIOS SOF NA PAUTA <span id="priorityAgendaCount"></span></button>
+    <button class="btn" id="pautaHistoryBtn">🕘 Histórico de pautas <span id="pautaVersionCount"></span></button>
+  </div>
+
+  <div id="importPreview" style="display:none;background:#f0f7ff;border:1px solid #b7d3f5;border-radius:12px;padding:15px;margin:12px 0">
+    <b>Pré-visualização da importação — ainda não salva</b><div id="previewSummary" style="margin:7px 0"></div>
+    <div style="max-height:250px;overflow:auto"><table style="width:100%;font-size:12px"><thead><tr><th>TC</th><th>Assunto</th><th>Origem</th><th>Relator</th></tr></thead><tbody id="previewRows"></tbody></table></div>
+    <p class="muted">Confira os dados antes de clicar em “Salvar alterações”. Importações ficam apenas neste navegador; não são publicadas automaticamente.</p>
+  </div>
+  <section hidden class="auto-monitor" aria-label="Monitoramento automático TCU">
+    <h2>🔄 Monitoramento automático TCU <span style="font-size:11px;color:#667085;font-weight:normal">· rotina diária programada no GitHub Actions</span></h2>
+    <div class="muted" style="font-size:12px">Consulta fontes públicas do TCU. Descobre processos em pautas, sinaliza indícios temáticos e separa solicitações do Congresso. A relevância deve ser validada pela CGCOR. Os resultados exigem validação.</div>
+    <div class="monitor-grid">
+      <div class="monitor-stat"><strong id="autoTotal">0</strong><span>Processos na base pública</span></div>
+      <div class="monitor-stat"><strong id="autoNew">0</strong><span>Novos na última coleta</span></div>
+      <div class="monitor-stat"><strong id="autoState">Pendente</strong><span>Estado da coleta</span></div>
+    </div>
+    <div id="publicChangesStatus" class="muted" style="font-size:12px;margin-top:10px" aria-live="polite">Alterações em fontes públicas: aguardando consulta.</div>
+    <div id="trackedPublicStatus" class="muted" style="font-size:12px;margin-top:8px" aria-live="polite">Processos acompanhados: aguardando consulta.</div>
+    <div id="autoSummaries" class="muted" style="font-size:12px;margin-top:10px">Nenhum resumo público carregado.</div>
+  </section>
+
+<section hidden class="triage-panel" id="triagePanel">
+ <h2>🗂 Novos processos — Triagem CGCOR</h2>
+ <div class="muted" style="font-size:12px">Os registros públicos ainda não cadastrados ficam aguardando análise. Somente processos TCU confirmados podem entrar na base consolidada; referências SCN permanecem na triagem mesmo após aprovação. Decisões salvas neste navegador; não são compartilhadas automaticamente entre computadores.</div>
+ <div class="triage-kpis">
+  <span><b id="triagePending">0</b> aguardando análise</span>
+  <span><b id="triageApproved">0</b> aprovados</span>
+  <span><b id="triageRejected">0</b> descartados</span>
+ </div>
+ <div class="triage-toolbar">
+  <select id="triageView" aria-label="Situação da triagem"><option value="pending">Pendentes</option><option value="approved">Aprovados</option><option value="rejected">Descartados</option><option value="all">Todos</option></select>
+  <input id="triageSearch" placeholder="Buscar TC ou assunto" aria-label="Buscar na triagem">
+  <button class="btn" id="triageExportBtn">⬇ Exportar decisões JSON</button>
+  <label class="btn">⬆ Importar decisões JSON<input type="file" id="triageImportInput" accept=".json,application/json"></label>
+ </div>
+ <div id="triageList" aria-live="polite"></div>
+</section>
+  <div hidden id="publicFeedStatus" class="muted" style="margin:8px 0;font-size:12px">Base pública automática: aguardando configuração de dados/processos_publicos.json. Dados locais não são enviados à internet.</div>
+  <div class="grid-kpi">
+    <div class="kpi"><div class="label">Processos únicos</div><div class="value" id="kTotal">0</div><div class="sub">após deduplicação</div></div>
+    <div class="kpi"><div class="label">Base SOF</div><div class="value" id="kSof">0</div><div class="sub">processos prioritários</div></div>
+    <div class="kpi"><div class="label">Na pauta</div><div class="value" id="kPauta">0</div><div class="sub">sessão / pautas importadas</div></div>
+    <div class="kpi"><div class="label">Coincidências</div><div class="value" id="kOverlap">0</div><div class="sub">base SOF + pauta</div></div>
+    <div class="kpi"><div class="label">Potencial interesse SOF</div><div class="value" id="kPotencial">0</div><div class="sub">triagem automática</div></div>
+    <div class="kpi"><div class="label">Atenção alta</div><div class="value" id="kAlta">0</div><div class="sub">avaliação SOF crítica/alta</div></div>
+    <div class="kpi"><div class="label">Novos na pauta</div><div class="value" id="kNovos">0</div><div class="sub">desde a versão anterior</div></div>
+    <div class="kpi"><div class="label">Retirados da pauta</div><div class="value" id="kRetirados">0</div><div class="sub">desde a versão anterior</div></div>
+<div class="kpi"><div class="label">Fichas SOF preenchidas</div><div class="value" id="kFichas">0</div><div class="sub">análises estruturadas</div></div>
+<div class="kpi"><div class="label">🎯 Prioritários SOF na pauta</div><div class="value" id="kPriorityAgenda">0</div><div class="sub">objetivo principal do monitoramento</div></div>
+  </div>
+
+  <div class="section panel">
+    <h2>Filtros</h2>
+    <div class="filters">
+      <div class="filter"><label>Buscar</label><input id="fSearch" placeholder="Processo, assunto, nota, unidade..."></div>
+      <div class="filter"><label>Origem</label><select id="fOrigem"><option value="">Todas</option></select></div>
+      <div class="filter"><label>Ano do processo</label><select id="fAno"><option value="">Todos</option></select></div>
+      <div class="filter"><label>Tipo / natureza</label><select id="fTipo"><option value="">Todos</option></select></div>
+      <div class="filter"><label>Relator</label><select id="fMinistro"><option value="">Todos</option></select></div>
+      <div class="filter"><label>Relevância SOF</label><select id="fRelevancia"><option value="">Todas</option></select></div>
+      <div class="filter"><label>Risco / Atenção SOF</label><select id="fAtencao"><option value="">Todos</option></select></div>
+      <div class="filter"><label>Situação na pauta</label><select id="fPautaStatus"><option value="">Todas</option></select></div>
+<div class="filter"><label>Interesse orçamentário SOF</label><select id="fSofInterest"><option value="">Todos</option><option>Alto</option><option>Médio</option><option>Baixo</option></select></div>
+    </div>
+  </div>
+
+  <div class="section charts">
+    <div class="panel"><h2>Processos por origem</h2><div class="chartbox"><canvas id="chartOrigem"></canvas></div></div>
+    <div class="panel"><h2>Tipos mais frequentes</h2><div class="chartbox"><canvas id="chartTipo"></canvas></div></div>
+    <div class="panel"><h2>Relatores na pauta</h2><div class="chartbox"><canvas id="chartMinistro"></canvas></div></div>
+  </div>
+
+  <div class="section panel">
+    <h2>Base consolidada <span class="muted small" id="countLabel"></span></h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Processo</th><th>Data inclusão</th><th>Origem</th><th>Situação na pauta</th><th>Interesse SOF</th><th>Assunto</th><th>Nota</th><th>Tipo</th><th>Relator</th><th>Unidade jurisdicionada</th><th>Relevância SOF</th><th>Risco / Atenção SOF</th><th>Ações</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="pager">
+      <button class="btn" id="prevBtn">← Anterior</button>
+      <span class="muted small" id="pageLabel"></span>
+      <button class="btn" id="nextBtn">Próxima →</button>
+    </div>
+  </div>
+
+  <div class="alert">A função central do painel é o botão <b>🎯 PRIORITÁRIOS SOF NA PAUTA</b>, que cruza a versão atual da pauta com a planilha oficial de processos prioritários da SOF. A nova <b>triagem de interesse orçamentário-financeiro SOF</b> usa os campos disponíveis para destacar processos potencialmente relevantes; ela é indicativa e deve ser complementada pela leitura das peças do processo. O <b>Relatório resumido SOF</b> privilegia processos customizados pela equipe, riscos altos/críticos e movimentações de pauta. O painel mantém <b>controle de versões das pautas</b>: ao importar uma nova versão da mesma sessão, compara os processos e identifica inclusões, permanências e retiradas sem apagar o histórico. As classificações automáticas de <b>relevância e risco/atenção</b> são sugestões de triagem. Os campos “Relevância SOF” e “Risco/Atenção SOF” podem ser alterados pela equipe; a avaliação manual fica salva neste navegador e prevalece nos filtros, KPIs e exportações.</div>
+  <div class="footer">Painel CGCOR/SOF/MPO · Importações e avaliações locais não são publicadas automaticamente. Antes de publicar este HTML, revise os dados iniciais incorporados e remova informações não autorizadas.</div>
+</div>
+
+<div class="modal" id="modal"><div class="modal-card">
+  <button class="btn" style="float:right" id="closeModal">Fechar</button>
+  <h3 id="mTitle"></h3><div id="mBody"></div>
+</div></div>
+
+<script>
+const INITIAL_DATA=[];
+const LS_KEY="cgcor_final_local_imports_v1";
+const ASSESS_KEY="cgcor_final_local_assessments_v1";
+const DELETED_KEY="cgcor_final_local_deleted_v1";
+const PAUTA_VERSIONS_KEY="cgcor_final_local_pauta_versions_v1";
+const INTEL_SOF_KEY="cgcor_final_local_intelligence_cards_v1";
+let intelCards=JSON.parse(localStorage.getItem(INTEL_SOF_KEY)||"{}");
+const PRIORITY_SOF_SOURCE=[];
+const PRIORITY_SOF_SET=new Set(PRIORITY_SOF_SOURCE.map(x=>x.processo));
+function priorityInfo(p){return PRIORITY_SOF_SOURCE.find(x=>x.processo===p)||null}
+function isPriorityOnCurrentAgenda(p){return PRIORITY_SOF_SET.has(p)&&(activePautaVersion()?.processes||[]).includes(p)}
+function priorityMatches(){const current=new Set(activePautaVersion()?.processes||[]);return PRIORITY_SOF_SOURCE.filter(x=>current.has(x.processo))}
+
+// Enriquecimento restrito aos processos prioritários SOF; os dados persistem localmente.
+const TCU_ENRICH_KEY="cgcor_final_local_tcu_enrichment_v1";
+let tcuEnrichment={};
+try{tcuEnrichment=JSON.parse(localStorage.getItem(TCU_ENRICH_KEY)||"{}")||{}}catch(e){}
+function saveTcuEnrichment(){
+ try{localStorage.setItem(TCU_ENRICH_KEY,JSON.stringify(tcuEnrichment));return true}
+ catch(e){alert("Não foi possível armazenar as informações neste navegador.");return false}
+}
+function tcuRecord(p){return tcuEnrichment[p]||{}}
+function tcuProcessUrl(p){return "https://pesquisa.apps.tcu.gov.br/pesquisa/processo/consulta%20consolidada"}
+function tcuFieldHtml(p,key,label,wide=false){
+ const v=tcuRecord(p)[key]||"";
+ const id="tcu_"+key;
+ return `<div class="${wide?"wide":""}"><label for="${id}">${label}</label>${wide?`<textarea id="${id}">${escapeHtml(v)}</textarea>`:`<input id="${id}" value="${escapeHtml(v)}">`}</div>`;
+}
+function tcuEnrichmentHtml(p){
+ const r=data.find(x=>x.processo===p)||{};
+ const t=tcuRecord(p);
+ return `<section class="tcu-extra"><h4>🏛️ Informações do processo no TCU · TC ${escapeHtml(p)}</h4>
+ <div class="muted" style="margin-bottom:10px">Somente prioritários SOF. Campos preenchidos pela pauta e pela equipe são identificados separadamente. A consulta pública pode não disponibilizar todos os dados.</div>
+ <div class="tcu-extra-grid">
+ ${tcuFieldHtml(p,"tema","Tema / objeto",true)}
+ ${tcuFieldHtml(p,"relator","Relator")}
+ ${tcuFieldHtml(p,"unidadeResponsavel","Unidade técnica responsável (TCU)")}
+ ${tcuFieldHtml(p,"unidadeJurisdicionada","Unidade(s) jurisdicionada(s)",true)}
+ ${tcuFieldHtml(p,"interessados","Interessados",true)}
+ ${tcuFieldHtml(p,"situacao","Situação processual / na sessão")}
+ ${tcuFieldHtml(p,"encaminhamento","Proposta de encaminhamento",true)}
+ ${tcuFieldHtml(p,"sei","SEI vinculado (se houver)")}
+ </div>
+ <div class="muted" style="margin-top:9px"><b>Extraído da pauta:</b> relator ${escapeHtml(r.ministro||"não informado")}; UJ ${escapeHtml(r.unidade||"não informada")}; assunto ${escapeHtml(r.assuntoPauta||"não informado")}.<br>
+ <b>Última consulta pública:</b> ${escapeHtml(t.consultadoEm?new Date(t.consultadoEm).toLocaleString("pt-BR"):"não realizada")} · <b>Última gravação:</b> ${escapeHtml(t.salvoEm?new Date(t.salvoEm).toLocaleString("pt-BR"):"não registrada")}.</div>
+ <div class="tcu-extra-actions">
+ <button class="btn primary" onclick="saveTcuProcess('${escapeHtml(p)}')">💾 Salvar informações</button>
+ <button class="btn" onclick="updateTcuProcess('${escapeHtml(p)}')">🔄 Consultar dados públicos da pauta TCU</button>
+ <button class="btn" onclick="window.open(tcuProcessUrl('${escapeHtml(p)}'),'_blank','noopener')">↗ Consultar processo no portal TCU</button>
+ </div>
+ <div class="muted" style="margin-top:8px">A consulta automática utiliza apenas o serviço público de pautas (quando acessível). Tema detalhado, unidade técnica, interessados e encaminhamento podem exigir consulta ao processo e registro pela equipe. Dados internos SEI não são substituídos.</div>
+ </section>`;
+}
+function saveTcuProcess(p){
+ if(!PRIORITY_SOF_SET.has(p))return alert("Este cadastro é exclusivo de processos prioritários SOF.");
+ const keys=["tema","relator","unidadeResponsavel","unidadeJurisdicionada","interessados","situacao","encaminhamento","sei"];
+ const obj={...tcuRecord(p)};
+ keys.forEach(k=>obj[k]=(document.getElementById("tcu_"+k)?.value||"").trim());
+ obj.salvoEm=new Date().toISOString();
+ tcuEnrichment[p]=obj;
+ if(saveTcuEnrichment()){showDetail(p);alert("Informações do TCU salvas neste navegador.")}
+}
+async function updateTcuProcess(p){
+ if(!PRIORITY_SOF_SET.has(p))return alert("Consulta restrita aos prioritários SOF.");
+ const endpoint="https://dados-abertos.apps.tcu.gov.br/api/pautassessao";
+ try{
+  const response=await fetch(endpoint,{headers:{Accept:"application/json"},signal:AbortSignal.timeout(14000)});
+  if(!response.ok)throw Error("HTTP "+response.status);
+  const json=await response.json();
+  const items=Array.isArray(json)?json:Array.isArray(json.items)?json.items:[];
+  const normalized=s=>String(s||"").replace(/\D/g,"");
+  const hit=items.filter(x=>normalized(x.numeroProcesso)===normalized(p)).sort((a,b)=>String(b.dataSessao||"").localeCompare(String(a.dataSessao||"")))[0];
+  if(!hit){alert("O serviço respondeu, mas não encontrou este processo no conjunto de pautas retornado. Nenhum dado foi alterado.");return}
+  const old=tcuRecord(p),next={...old};
+  // Only official fields documented for the public agenda service.
+  if(hit.nomeRelator)next.relator=hit.nomeRelator;
+  if(hit.naturezaProcesso||hit.tipoProcesso)next.tipoPauta=hit.naturezaProcesso||hit.tipoProcesso;
+  next.consultadoEm=new Date().toISOString();
+  next.fonte=endpoint;
+  tcuEnrichment[p]=next;
+  if(saveTcuEnrichment()){showDetail(p);alert("Consulta realizada. Relator da pauta atualizado quando disponível; demais campos preservados.")}
+ }catch(e){
+  alert("Não foi possível consultar o serviço público do TCU diretamente deste navegador (rede, CORS ou indisponibilidade). Os dados existentes foram preservados. Use o link para consulta oficial e registre as informações na ficha.");
+ }
+}
+const INITIAL_PAUTA_DATE="2026-09-16";
+function initialPautaVersion(){
+ const rows=INITIAL_DATA.filter(r=>(r.origem||"").includes("Pauta"));
+ return {id:"inicial-2026-09-16",sessionDate:INITIAL_PAUTA_DATE,importedAt:"2026-09-14T06:30:00",fileName:"Pauta inicial incorporada",processes:rows.map(r=>r.processo),rows};
+}
+let pautaVersions=JSON.parse(localStorage.getItem(PAUTA_VERSIONS_KEY)||"null");
+if(!Array.isArray(pautaVersions)||!pautaVersions.length){pautaVersions=[initialPautaVersion()];localStorage.setItem(PAUTA_VERSIONS_KEY,JSON.stringify(pautaVersions))}
+function activePautaVersion(){return pautaVersions[pautaVersions.length-1]||initialPautaVersion()}
+function previousPautaVersion(){return pautaVersions.length>1?pautaVersions[pautaVersions.length-2]:null}
+function pautaStatusMap(){
+ const cur=activePautaVersion(),prev=previousPautaVersion(),m=new Map();
+ const current=new Set(cur?.processes||[]),previous=new Set(prev?.processes||[]);
+ // Any process seen historically remains traceable.
+ pautaVersions.forEach(v=>(v.processes||[]).forEach(p=>{if(!m.has(p))m.set(p,{status:"Pauta anterior",lastDate:v.sessionDate,lastSeen:v.importedAt})}));
+ current.forEach(p=>m.set(p,{status:prev&&!previous.has(p)?"Novo na pauta":"Permaneceu em pauta",lastDate:cur.sessionDate,lastSeen:cur.importedAt}));
+ if(prev && prev.sessionDate===cur.sessionDate) previous.forEach(p=>{if(!current.has(p))m.set(p,{status:"Retirado de pauta",lastDate:cur.sessionDate,lastSeen:cur.importedAt})});
+ return m;
+}
+function pautaHistoryForProcess(p){
+ return pautaVersions.map((v,i)=>{
+   const present=(v.processes||[]).includes(p),prior=i?pautaVersions[i-1]:null;
+   const priorPresent=prior?(prior.processes||[]).includes(p):false;
+   let movement=present?(prior&&!priorPresent?"Incluído / novo":"Em pauta"):(prior&&priorPresent&&prior.sessionDate===v.sessionDate?"Retirado":"Fora da pauta");
+   return {version:i+1,sessionDate:v.sessionDate,importedAt:v.importedAt,fileName:v.fileName,present,movement};
+ }).filter((x,i,a)=>x.present||x.movement==="Retirado"||i===a.length-1);
+}
+function updatePautaVersionCount(){const el=document.getElementById("pautaVersionCount");if(el)el.textContent=`(${pautaVersions.length})`}
+let assessments=JSON.parse(localStorage.getItem(ASSESS_KEY)||"{}");
+let deletedProcesses=new Set(JSON.parse(localStorage.getItem(DELETED_KEY)||"[]"));
+const RISK_OPTIONS=["Crítica","Alta","Média","Baixa","Sem risco relevante"];
+const REL_OPTIONS=["Prioritário SOF","Potencial interesse SOF","Pauta geral"];
+function applyAssessments(rows){return rows.map(r=>{const a=assessments[r.processo]||{};return {...r,relevanciaSOF:a.relevancia||r.relevancia,atencaoSOF:a.atencao||r.atencao,justificativaSOF:a.justificativa||""}})}
+function intelCard(p){return intelCards[p]||{}}
+function saveIntelCard(p){
+ const get=id=>(document.getElementById(id)?.value||"").trim();
+ intelCards[p]={
+  impactoOrc:get("intelImpactoOrc"),impactoFin:get("intelImpactoFin"),valor:get("intelValor"),
+  exercicio:get("intelExercicio"),instrumento:get("intelInstrumento"),determinacao:get("intelDeterminacao"),
+  providencia:get("intelProvidencia"),prazo:get("intelPrazo"),responsavel:get("intelResponsavel"),
+  conclusao:get("intelConclusao"),pecas:get("intelPecas"),updatedAt:new Date().toISOString()
+ };
+ localStorage.setItem(INTEL_SOF_KEY,JSON.stringify(intelCards));data=buildData();applyFilters();
+ alert("Ficha de Inteligência SOF salva neste navegador.");
+}
+function clearIntelCard(p){
+ if(!confirm("Limpar a Ficha de Inteligência SOF deste processo?"))return;
+ delete intelCards[p];localStorage.setItem(INTEL_SOF_KEY,JSON.stringify(intelCards));data=buildData();applyFilters();showDetail(p);
+}
+function intelSummaryText(r){
+ const c=intelCard(r.processo),parts=[];
+ if(c.impactoOrc)parts.push(`Impacto orçamentário: ${c.impactoOrc}`);
+ if(c.impactoFin)parts.push(`Impacto financeiro: ${c.impactoFin}`);
+ if(c.valor)parts.push(`Valor: ${c.valor}`);
+ if(c.exercicio)parts.push(`Exercício: ${c.exercicio}`);
+ if(c.instrumento)parts.push(`Instrumento: ${c.instrumento}`);
+ if(c.determinacao)parts.push(`Determinação/recomendação: ${c.determinacao}`);
+ if(c.providencia)parts.push(`Providência: ${c.providencia}`);
+ if(c.conclusao)parts.push(`Conclusão SOF: ${c.conclusao}`);
+ return parts.join(" | ");
+}
+function sofBudgetIntelligence(r){
+ const c=intelCard(r.processo);const text=norm([r.assunto,r.nota,r.unidade,r.tipo,r.relevanciaSOF,r.justificativaSOF,c.impactoOrc,c.impactoFin,c.instrumento,c.determinacao,c.providencia,c.conclusao,c.pecas].join(" ")).toLowerCase();
+ const groups=[
+  {label:"Execução orçamentária/fiscal",w:4,terms:["execução orçament","execucao orcament","resultado fiscal","resultados fiscais","meta fiscal","metas fiscais","limite de despesa","limites de despesa","arcabouço fiscal","arcabouco fiscal"]},
+  {label:"PLOA/LOA/LDO/créditos",w:4,terms:["ploa","projeto de lei orçament","projeto de lei orcament","loa ","lei orçament","lei orcament","ldo","crédito adicional","credito adicional","crédito suplementar","credito suplementar","remanejamento orçament","remanejamento orcament"]},
+  {label:"SOF/MPO diretamente citado",w:5,terms:["secretaria de orçamento federal","secretaria de orcamento federal","ministério do planejamento e orçamento","ministerio do planejamento e orcamento"," sof "]},
+  {label:"Transferências/despesas públicas",w:2,terms:["transferência de recursos","transferencia de recursos","recursos da união","recursos da uniao","despesa obrigatória","despesa obrigatoria","benefício previdenciário","beneficio previdenciario","precatório","precatorio","subvenção","subvencao"]},
+  {label:"Impacto financeiro relevante",w:2,terms:["impacto orçament","impacto orcament","impacto financeiro","estimativa de despesa","estimativa de receita","renúncia de receita","renuncia de receita","receita pública","receita publica"]},
+  {label:"Fiscalização macro/orçamentária",w:2,terms:["acompanhamento","auditoria financeira","contas do presidente","gestão fiscal","gestao fiscal"]}
+ ];
+ let score=0,hits=[];
+ groups.forEach(g=>{if(g.terms.some(t=>text.includes(t))){score+=g.w;hits.push(g.label)}});
+ if((r.unidade||"").toLowerCase().includes("secretaria de orçamento federal")) score+=5;
+ if(c.conclusao==="Interesse direto da SOF")score+=5;else if(c.conclusao==="Interesse potencial da SOF")score+=3; if(c.valor)score+=1;if(c.determinacao)score+=1;score=Math.min(10,score);
+ const level=score>=6?"Alto":score>=3?"Médio":"Baixo";
+ const rationale=hits.length?hits.join("; "):"Não foram identificados, nos campos disponíveis no painel, sinais fortes de impacto orçamentário-financeiro.";
+ return {sofInterest:level,sofScore:score,sofSignals:hits,sofRationale:rationale};
+}
+function riskClass(v){return v==="Crítica"?"risk-critical":v==="Alta"?"risk-high":v==="Média"?"risk-medium":v==="Baixa"?"risk-low":"risk-none"}
+function buildData(){const sm=pautaStatusMap();const priorityBase=PRIORITY_SOF_SOURCE.map(x=>({processo:x.processo,sei:x.sei,assunto:x.assunto,nota:x.nota,origem:"Base SOF — Prioritário",relevancia:"Prioritário SOF",atencao:"Média"}));return applyAssessments(mergeData([...INITIAL_DATA,...priorityBase,...(publicFeedRows||[]),...imported])).map(r=>{const s=sm.get(r.processo);const intel=sofBudgetIntelligence(r);return {...r,...intel,prioritarioSOF:PRIORITY_SOF_SET.has(r.processo),naPautaPrioritaria:isPriorityOnCurrentAgenda(r.processo),statusPauta:s?.status||"Não consta em pauta",statusPautaData:s?.lastDate||""}}).filter(r=>!deletedProcesses.has(r.processo))}
+function updateDeletedCount(){const n=deletedProcesses.size;const el=document.getElementById("deletedCount");if(el)el.textContent=n?`(${n})`:""}
+function deleteProcess(processo){if(!confirm(`Excluir o processo ${processo} da Base Consolidada?\n\nEle ficará oculto neste navegador e poderá ser restaurado pelo botão “Restaurar processos excluídos”.`))return;deletedProcesses.add(processo);localStorage.setItem(DELETED_KEY,JSON.stringify([...deletedProcesses]));data=buildData();updateDeletedCount();refreshFilters();applyFilters()}
+function restoreDeletedProcesses(){if(!deletedProcesses.size){alert("Não há processos excluídos para restaurar.");return}if(!confirm(`Restaurar ${deletedProcesses.size} processo(s) excluído(s)?`))return;deletedProcesses.clear();localStorage.removeItem(DELETED_KEY);data=buildData();updateDeletedCount();refreshFilters();applyFilters()}
+function saveAssessment(processo,patch){const base=assessments[processo]||{};assessments[processo]={...base,...patch};localStorage.setItem(ASSESS_KEY,JSON.stringify(assessments));data=buildData();refreshFilters();applyFilters()}
+function resetOneAssessment(processo){delete assessments[processo];localStorage.setItem(ASSESS_KEY,JSON.stringify(assessments));data=buildData();refreshFilters();applyFilters()}
+let imported=JSON.parse(localStorage.getItem(LS_KEY)||"[]");
+let data=buildData();
+let filtered=[];
+let page=1; const pageSize=25;
+let charts={};
+
+function norm(s){return String(s??"").trim()}
+function processYear(p){const m=norm(p).match(/\/(\d{4})-/);return m?m[1]:""}
+function isoBR(s){if(!s)return "—";const d=new Date(s+"T00:00:00");return isNaN(d)?s:d.toLocaleDateString("pt-BR")}
+function escapeHtml(s){return norm(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m]))}
+function inferTipo(a="",n=""){if(n)return n.toLowerCase().replace(/(^|\s)\S/g,x=>x.toUpperCase()); const s=a.toLowerCase(); const ps=[["Tomada de Contas Especial","tomada de contas especial"],["Acompanhamento","acompanh"],["Auditoria","auditoria"],["Representação","representa"],["Monitoramento","monitoramento"],["Solicitação do Congresso","solicitação do congresso"],["Consulta","consulta"],["Denúncia","denúncia"],["Recurso","recurso"],["Embargos","embargos"],["Processo administrativo","processo administrativo"]];for(const [l,p] of ps)if(s.includes(p))return l;return "Outros"}
+function relevance(r){if((r.origem||"").includes("Base SOF"))return "Prioritário SOF"; const t=(r.assunto+" "+(r.unidade||"")).toLowerCase(); return ["secretaria de orçamento federal","ministério do planejamento e orçamento","orçament","fiscal","receitas e despesas","ploa","pldo","lei de diretrizes orçamentárias"].some(k=>t.includes(k))?"Potencial interesse SOF":"Pauta geral"}
+function mergeData(arr){
+ const map=new Map();
+ for(const raw of arr){
+   const p=norm(raw.processo); if(!p)continue;
+   const r={...raw,processo:p};
+   if(!map.has(p)) map.set(p,r);
+   else{
+     const a=map.get(p);
+     const origins=new Set((a.origem+" + "+r.origem).split(" + ").filter(Boolean));
+     a.origem=[...origins].join(" + ").replace("Base SOF + Pauta TCU + Pauta TCU","Base SOF + Pauta TCU");
+     for(const k of ["assunto","nota","dataInclusao","dataPauta","ministro","secao","natureza","unidade","assuntoPauta"]) if(!a[k]&&r[k]) a[k]=r[k];
+     if(r.assunto && r.origem?.includes("Base SOF")) a.assunto=r.assunto;
+     if(r.nota && r.origem?.includes("Base SOF")) a.nota=r.nota;
+   }
+ }
+ return [...map.values()].map(r=>({...r,tipo:r.tipo||inferTipo(r.assuntoPauta||r.assunto,r.natureza),relevancia:r.relevancia||relevance(r),atencao:r.atencao||((r.origem||"").includes("Base SOF")&&(r.origem||"").includes("Pauta")?"Alta":relevance(r)==="Pauta geral"?"Baixa":"Média")}));
+}
+
+function fillSelect(id,vals){const s=document.getElementById(id),cur=s.value; s.innerHTML=s.options[0].outerHTML; [...new Set(vals.filter(Boolean))].sort().forEach(v=>s.insertAdjacentHTML("beforeend",`<option>${escapeHtml(v)}</option>`)); if([...s.options].some(o=>o.value===cur))s.value=cur}
+function refreshFilters(){fillSelect("fOrigem",data.map(x=>x.origem));fillSelect("fAno",data.map(x=>processYear(x.processo)));fillSelect("fTipo",data.map(x=>x.tipo));fillSelect("fMinistro",data.map(x=>x.ministro));fillSelect("fRelevancia",data.map(x=>x.relevanciaSOF));fillSelect("fAtencao",data.map(x=>x.atencaoSOF));fillSelect("fPautaStatus",data.map(x=>x.statusPauta))}
+function applyFilters(){
+ const q=norm(fSearch.value).toLowerCase(), origem=fOrigem.value,ano=fAno.value,tipo=fTipo.value,min=fMinistro.value,rel=fRelevancia.value,aten=fAtencao.value,pstatus=fPautaStatus.value,sinterest=fSofInterest.value;
+ filtered=data.filter(r=>(!q||JSON.stringify(r).toLowerCase().includes(q))&&(!origem||r.origem===origem)&&(!ano||processYear(r.processo)===ano)&&(!tipo||r.tipo===tipo)&&(!min||r.ministro===min)&&(!rel||r.relevanciaSOF===rel)&&(!aten||r.atencaoSOF===aten)&&(!pstatus||r.statusPauta===pstatus)&&(!sinterest||r.sofInterest===sinterest));
+ page=1; render();
+}
+function tag(text,kind="gray"){return `<span class="tag ${kind}">${escapeHtml(text||"—")}</span>`}
+function render(){
+ const total=data.length, sof=data.filter(x=>(x.origem||"").includes("Base SOF")).length,pauta=data.filter(x=>["Novo na pauta","Permaneceu em pauta"].includes(x.statusPauta)).length,over=data.filter(x=>(x.origem||"").includes("Base SOF")&&["Novo na pauta","Permaneceu em pauta"].includes(x.statusPauta)).length,pot=data.filter(x=>x.relevanciaSOF==="Potencial interesse SOF").length,alta=data.filter(x=>["Crítica","Alta"].includes(x.atencaoSOF)).length,novos=data.filter(x=>x.statusPauta==="Novo na pauta").length,retirados=data.filter(x=>x.statusPauta==="Retirado de pauta").length,fichas=data.filter(x=>intelCard(x.processo).updatedAt).length,priorityAgenda=priorityMatches().length;
+ kTotal.textContent=total;kSof.textContent=sof;kPauta.textContent=pauta;kOverlap.textContent=over;kPotencial.textContent=pot;kAlta.textContent=alta;kNovos.textContent=novos;kRetirados.textContent=retirados;kFichas.textContent=fichas;kPriorityAgenda.textContent=priorityAgenda;const pac=document.getElementById("priorityAgendaCount");if(pac)pac.textContent=`(${priorityAgenda})`;updatePautaVersionCount();
+ const pages=Math.max(1,Math.ceil(filtered.length/pageSize)); if(page>pages)page=pages; const start=(page-1)*pageSize, rows=filtered.slice(start,start+pageSize);
+ tbody.innerHTML=rows.map(r=>`<tr>
+ <td class="proc" data-p="${escapeHtml(r.processo)}">${escapeHtml(r.processo)}</td>
+ <td>${isoBR(r.dataInclusao)}</td>
+ <td>${tag(r.origem,r.origem.includes("Base SOF")&&r.origem.includes("Pauta")?"purple":r.origem.includes("Base SOF")?"green":"blue")}</td>
+ <td>${tag(r.statusPauta,r.statusPauta==="Retirado de pauta"?"red":r.statusPauta==="Novo na pauta"?"green":r.statusPauta==="Permaneceu em pauta"?"blue":"gray")}</td>
+<td>${tag(r.sofInterest,r.sofInterest==="Alto"?"red":r.sofInterest==="Médio"?"amber":"blue")} <small>${r.sofScore}/10</small>${intelCard(r.processo).updatedAt?`<div><small>✓ ficha SOF</small></div>`:""}</td>
+ <td class="subject">${escapeHtml(r.assunto||"—")}${r.assuntoPauta&&r.assuntoPauta!==r.assunto?`<div class="muted small" style="margin-top:6px"><b>Na pauta:</b> ${escapeHtml(r.assuntoPauta)}</div>`:""}</td>
+ <td class="note">${escapeHtml(r.nota||"—")}</td>
+ <td>${tag(r.tipo,"gray")}</td>
+ <td>${escapeHtml(r.ministro||"—")}</td>
+ <td>${escapeHtml(r.unidade||"—")}</td>
+ <td><select class="editable-select rel-edit" data-p="${escapeHtml(r.processo)}">${[...new Set([...REL_OPTIONS,r.relevanciaSOF])].filter(Boolean).map(v=>`<option ${v===r.relevanciaSOF?"selected":""}>${escapeHtml(v)}</option>`).join("")}<option value="__custom__">+ Personalizar…</option></select><span class="auto-hint">Automática: ${escapeHtml(r.relevancia)}</span></td>
+ <td><select class="editable-select risk-edit" data-p="${escapeHtml(r.processo)}">${[...new Set([...RISK_OPTIONS,r.atencaoSOF])].filter(Boolean).map(v=>`<option ${v===r.atencaoSOF?"selected":""}>${escapeHtml(v)}</option>`).join("")}<option value="__custom__">+ Personalizar…</option></select><span class="auto-hint">Automática: ${escapeHtml(r.atencao)}</span></td>
+ <td><button class="btn delete-proc" data-p="${escapeHtml(r.processo)}" title="Excluir este processo do acompanhamento" style="white-space:nowrap">🗑 Excluir</button></td></tr>`).join("");
+ countLabel.textContent=`· ${filtered.length} de ${data.length} registros`;
+ pageLabel.textContent=`Página ${page} de ${pages}`; prevBtn.disabled=page<=1;nextBtn.disabled=page>=pages;
+ document.querySelectorAll(".proc").forEach(el=>el.onclick=()=>showDetail(el.dataset.p));
+ document.querySelectorAll(".rel-edit").forEach(el=>el.onchange=()=>{let v=el.value;if(v==="__custom__"){v=prompt("Digite a relevância personalizada:","");if(!v){render();return}}saveAssessment(el.dataset.p,{relevancia:v})});
+ document.querySelectorAll(".risk-edit").forEach(el=>el.onchange=()=>{let v=el.value;if(v==="__custom__"){v=prompt("Digite a classificação de risco/atenção personalizada:","");if(!v){render();return}}saveAssessment(el.dataset.p,{atencao:v})});
+ document.querySelectorAll(".delete-proc").forEach(el=>el.onclick=()=>deleteProcess(el.dataset.p));
+ updateDeletedCount();
+ drawCharts();
+}
+function countBy(arr,key){const o={};arr.forEach(r=>{const v=norm(r[key])||"Não informado";o[v]=(o[v]||0)+1});return Object.entries(o).sort((a,b)=>b[1]-a[1])}
+function makeChart(id,type,labels,values,label){
+ if(charts[id])charts[id].destroy();
+ charts[id]=new Chart(document.getElementById(id),{type,data:{labels,datasets:[{label,data:values,borderWidth:0,backgroundColor:["#2563eb","#06b6d4","#10b981","#f59e0b","#7c3aed","#ef4444","#64748b","#0ea5e9","#84cc16","#f97316"]}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:type==="doughnut",position:"bottom"}},scales:type==="doughnut"?{}:{y:{beginAtZero:true,ticks:{precision:0}},x:{ticks:{autoSkip:false,maxRotation:35,minRotation:0}}}}});
+}
+function drawCharts(){
+ let a=countBy(filtered,"origem");makeChart("chartOrigem","doughnut",a.map(x=>x[0]),a.map(x=>x[1]),"Processos");
+ let t=countBy(filtered,"tipo").slice(0,8);makeChart("chartTipo","bar",t.map(x=>x[0]),t.map(x=>x[1]),"Processos");
+ let m=countBy(filtered.filter(x=>x.ministro),"ministro").slice(0,8);makeChart("chartMinistro","bar",m.map(x=>x[0]),m.map(x=>x[1]),"Processos");
+}
+function showDetail(p){
+ const r=data.find(x=>x.processo===p); if(!r)return;
+ mTitle.textContent="TC "+r.processo;
+ const fields=[["Origem",r.origem],["Prioritário SOF",r.prioritarioSOF?"SIM — consta na planilha oficial de prioritários":"Não"],["Situação na pauta",r.statusPauta],["Interesse orçamentário SOF (triagem)",`${r.sofInterest} · ${r.sofScore}/10`],["Data de inclusão",isoBR(r.dataInclusao)],["Data da pauta",isoBR(r.dataPauta)],["Relator",r.ministro],["Seção da pauta",r.secao],["Tipo / natureza",r.tipo],["Relevância automática",r.relevancia],["Risco/Atenção automática",r.atencao],["Assunto da base",r.assunto],["Assunto na pauta",r.assuntoPauta],["Nota",r.nota],["Unidade jurisdicionada",r.unidade]];
+ const relOpts=[...new Set([...REL_OPTIONS,r.relevanciaSOF])].filter(Boolean).map(v=>`<option ${v===r.relevanciaSOF?"selected":""}>${escapeHtml(v)}</option>`).join("");
+ const riskOpts=[...new Set([...RISK_OPTIONS,r.atencaoSOF])].filter(Boolean).map(v=>`<option ${v===r.atencaoSOF?"selected":""}>${escapeHtml(v)}</option>`).join("");
+ const ph=pautaHistoryForProcess(r.processo);
+ mBody.innerHTML=`${PRIORITY_SOF_SET.has(r.processo)?tcuEnrichmentHtml(r.processo):""}<div class="sof-intel"><h4>💰 Triagem de interesse orçamentário-financeiro para a SOF</h4><div class="sof-score">${r.sofInterest} · ${r.sofScore}/10</div><div style="margin-top:6px">${escapeHtml(r.sofRationale)}</div><div class="muted" style="margin-top:8px">A triagem usa apenas assunto, nota, unidade, tipo e avaliações disponíveis no painel. Para decidir o interesse da SOF com maior segurança, recomenda-se registrar no campo de justificativa os achados obtidos na instrução, relatório, voto, acórdão ou ofício do processo.</div></div><div class="assessment-box" style="margin-top:14px"><b style="display:block;margin-bottom:4px">🧭 Ficha de Inteligência Orçamentária SOF</b><div class="muted">Campos estruturados para registrar o que foi apurado nas peças do processo. Essas informações alimentam o relatório resumido e a triagem de interesse SOF.</div><div class="intel-form">
+<div class="intel-field"><label>Impacto orçamentário</label><select id="intelImpactoOrc"><option></option>${["Alto","Médio","Baixo","Não identificado"].map(x=>`<option ${c.impactoOrc===x?"selected":""}>${x}</option>`).join("")}</select></div>
+<div class="intel-field"><label>Impacto financeiro</label><select id="intelImpactoFin"><option></option>${["Alto","Médio","Baixo","Não identificado"].map(x=>`<option ${c.impactoFin===x?"selected":""}>${x}</option>`).join("")}</select></div>
+<div class="intel-field"><label>Valor / ordem de grandeza</label><input id="intelValor" value="${escapeHtml(c.valor||"")}" placeholder="Ex.: R$ 250 milhões"></div>
+<div class="intel-field"><label>Exercício afetado</label><input id="intelExercicio" value="${escapeHtml(c.exercicio||"")}" placeholder="Ex.: 2026/2027"></div>
+<div class="intel-field"><label>Instrumento orçamentário relacionado</label><select id="intelInstrumento"><option></option>${["PLOA","LOA","PLDO/LDO","Crédito adicional","Programação financeira","Limite de empenho/movimentação","Outro","Não identificado"].map(x=>`<option ${c.instrumento===x?"selected":""}>${x}</option>`).join("")}</select></div>
+<div class="intel-field"><label>Conclusão sobre interesse da SOF</label><select id="intelConclusao"><option></option>${["Interesse direto da SOF","Interesse potencial da SOF","Apenas monitoramento","Sem interesse relevante identificado"].map(x=>`<option ${c.conclusao===x?"selected":""}>${x}</option>`).join("")}</select></div>
+<div class="intel-field full"><label>Determinação / recomendação / questão que pode afetar a SOF</label><textarea id="intelDeterminacao" placeholder="Registre a determinação, recomendação, questionamento ou proposta de encaminhamento relevante.">${escapeHtml(c.determinacao||"")}</textarea></div>
+<div class="intel-field full"><label>Providência necessária / ponto de decisão</label><textarea id="intelProvidencia" placeholder="Ex.: avaliar impacto no PLOA; consultar área técnica; preparar resposta ao TCU.">${escapeHtml(c.providencia||"")}</textarea></div>
+<div class="intel-field"><label>Prazo / marco</label><input id="intelPrazo" value="${escapeHtml(c.prazo||"")}" placeholder="Ex.: 20/09/2026"></div>
+<div class="intel-field"><label>Responsável / área</label><input id="intelResponsavel" value="${escapeHtml(c.responsavel||"")}" placeholder="Ex.: área técnica / analista"></div>
+<div class="intel-field full"><label>Peças consultadas / evidências</label><textarea id="intelPecas" placeholder="Ex.: instrução, relatório, voto, acórdão, ofício; registre referências úteis.">${escapeHtml(c.pecas||"")}</textarea></div>
+</div><div class="intel-actions"><button class="btn primary" onclick="saveIntelCard('${escapeHtml(r.processo)}')">💾 Salvar ficha SOF</button><button class="btn" onclick="clearIntelCard('${escapeHtml(r.processo)}')">Limpar ficha</button></div>${c.updatedAt?`<div class="muted" style="margin-top:8px">Última atualização: ${new Date(c.updatedAt).toLocaleString("pt-BR")}</div>`:""}</div><div class="assessment-box"><b style="display:block;margin-bottom:10px">Avaliação SOF — editável</b><div class="assessment-grid"><div><label>Relevância SOF</label><select id="mRel">${relOpts}<option value="__custom__">+ Personalizar…</option></select></div><div><label>Risco / Atenção SOF</label><select id="mRisk">${riskOpts}<option value="__custom__">+ Personalizar…</option></select></div><div style="grid-column:1/-1"><label>Justificativa da avaliação</label><textarea id="mJust" placeholder="Ex.: possível impacto no PLOA 2027; risco de determinação à SOF; necessidade de acompanhamento...">${escapeHtml(r.justificativaSOF||"")}</textarea></div></div><div class="assessment-actions"><button class="btn primary" id="saveAssessModal">Salvar avaliação SOF</button><button class="btn" id="resetAssessModal">Restaurar avaliação automática deste processo</button></div></div><div class="detail-grid">${fields.map(([k,v])=>`<div class="detail"><b>${escapeHtml(k)}</b>${escapeHtml(v||"—")}</div>`).join("")}</div><div class="assessment-box" style="margin-top:14px"><b style="display:block;margin-bottom:10px">Histórico de pauta</b>${ph.length?ph.map(h=>`<div class="detail" style="margin-bottom:8px"><b>Versão ${h.version} · sessão ${isoBR(h.sessionDate)}</b>${escapeHtml(h.movement)} · ${escapeHtml(h.fileName||"pauta")} · importada em ${new Date(h.importedAt).toLocaleString("pt-BR")}</div>`).join(""):"Sem histórico de pauta para este processo."}</div>`;
+ document.getElementById("saveAssessModal").onclick=()=>{let rel=document.getElementById("mRel").value,risk=document.getElementById("mRisk").value;if(rel==="__custom__"){rel=prompt("Digite a relevância personalizada:",r.relevanciaSOF)||r.relevanciaSOF}if(risk==="__custom__"){risk=prompt("Digite a classificação de risco/atenção personalizada:",r.atencaoSOF)||r.atencaoSOF}saveAssessment(r.processo,{relevancia:rel,atencao:risk,justificativa:document.getElementById("mJust").value.trim()});modal.classList.remove("show")};
+ document.getElementById("resetAssessModal").onclick=()=>{if(confirm("Restaurar a avaliação automática deste processo?")){resetOneAssessment(r.processo);modal.classList.remove("show")}};
+ modal.classList.add("show");
+}
+closeModal.onclick=()=>modal.classList.remove("show"); modal.onclick=e=>{if(e.target===modal)modal.classList.remove("show")};
+[ fSearch,fOrigem,fAno,fTipo,fMinistro,fRelevancia,fAtencao,fPautaStatus,fSofInterest ].forEach(el=>el.addEventListener(el.tagName==="INPUT"?"input":"change",applyFilters));
+prevBtn.onclick=()=>{page--;render()};nextBtn.onclick=()=>{page++;render()};
+
+function saveImports(newRows){imported=mergeData([...imported,...newRows]);localStorage.setItem(LS_KEY,JSON.stringify(imported));data=buildData();refreshFilters();filtered=[...data];render()}
+function importPautaVersion(rows,fileName){
+ const sessionDate=rows[0]?.dataPauta||new Date().toISOString().slice(0,10);
+ const prior=activePautaVersion();
+ const version={id:`${Date.now()}`,sessionDate,importedAt:new Date().toISOString(),fileName:fileName||"Pauta PDF",processes:[...new Set(rows.map(r=>r.processo))],rows};
+ pautaVersions.push(version);localStorage.setItem(PAUTA_VERSIONS_KEY,JSON.stringify(pautaVersions));
+ imported=mergeData([...imported,...rows]);localStorage.setItem(LS_KEY,JSON.stringify(imported));
+ data=buildData();refreshFilters();filtered=[...data];render();
+ const cur=new Set(version.processes),prev=new Set(prior?.processes||[]);
+ const sameSession=prior?.sessionDate===sessionDate;
+ const added=[...cur].filter(p=>!prev.has(p));
+ const removed=sameSession?[...prev].filter(p=>!cur.has(p)):[];
+ alert(`Nova pauta registrada como versão ${pautaVersions.length}.\n\nSessão: ${isoBR(sessionDate)}\nProcessos na versão: ${cur.size}\nNovos: ${added.length}\nRetirados: ${removed.length}${!sameSession&&prior?"\n\nA data da sessão mudou; a pauta anterior foi preservada como histórico e não foi tratada como retirada desta sessão.":""}`);
+}
+function excelSerialToISO(n){if(typeof n!=="number")return norm(n);const d=new Date(Date.UTC(1899,11,30)+n*86400000);return d.toISOString().slice(0,10)}
+// V8: staging explícito, prévia e persistência local sob comando do usuário.
+let stagedRows=[],stagedFile="",stagedIsPauta=false;
+function tcNumbers(v){return [...new Set((String(v??"").match(/\b\d{3}\.\d{3}\/\d{4}-\d\b/g)||[]))]}
+function keyNorm(v){return norm(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim()}
+function excelDate(v){if(typeof v==="number")return excelSerialToISO(v);const m=String(v||"").match(/^(\d{2})\/(\d{2})\/(\d{4})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:norm(v)}
+function stageRows(rows,name,isPauta=false){
+ const unique=new Map();for(const r of rows){if(r.processo)unique.set(r.processo,{...(unique.get(r.processo)||{}),...r})}
+ stagedRows=[...unique.values()];stagedFile=name;stagedIsPauta=isPauta;
+ document.getElementById("saveStagedBtn").disabled=!stagedRows.length;document.getElementById("cancelStagedBtn").disabled=!stagedRows.length;
+ document.getElementById("stagedCount").textContent=stagedRows.length?`(${stagedRows.length})`:"";
+ const box=document.getElementById("importPreview");box.style.display=stagedRows.length?"block":"none";
+ const existing=new Set(data.map(r=>r.processo));const overlaps=stagedRows.filter(r=>existing.has(r.processo)).length;
+ document.getElementById("previewSummary").textContent=`Arquivo: ${name} | ${stagedRows.length} TC(s) únicos | ${overlaps} já constam da base | ${stagedRows.length-overlaps} novos.`;
+ document.getElementById("previewRows").innerHTML=stagedRows.slice(0,80).map(r=>`<tr><td>${escapeHtml(r.processo)}</td><td>${escapeHtml((r.assunto||"").slice(0,130))}</td><td>${escapeHtml(r.origem)}</td><td>${escapeHtml(r.ministro)}</td></tr>`).join("");
+}
+function clearStage(){stageRows([],"",false)}
+document.getElementById("cancelStagedBtn").onclick=clearStage;
+document.getElementById("saveStagedBtn").onclick=()=>{
+ if(!stagedRows.length)return;
+ try{if(stagedIsPauta)importPautaVersion(stagedRows,stagedFile);else saveImports(stagedRows);
+  clearStage();alert("Alterações salvas neste navegador. Para uso em outro computador, exporte os dados ou configure uma base centralizada.");
+ }catch(err){alert("Falha ao salvar: "+err.message)}
+};
+function parseExcelModels(wb){const out=[];let rowsRead=0;
+ for(const sheetName of wb.SheetNames){const sheet=wb.Sheets[sheetName];if(!sheet||!sheet['!ref'])continue;
+  const matrix=XLSX.utils.sheet_to_json(sheet,{header:1,defval:"",raw:true});
+  let headerIndex=-1,headers=[];
+  for(let i=0;i<Math.min(matrix.length,25);i++){const h=matrix[i].map(keyNorm);if(h.includes("tc")||h.includes("processo")||h.some(x=>x.includes("numero processo"))){headerIndex=i;headers=h;break}}
+  if(headerIndex<0)continue;
+  for(const row of matrix.slice(headerIndex+1)){
+   rowsRead++;const obj={};headers.forEach((h,i)=>{if(h)obj[h]=row[i]??""});
+   const get=(...keys)=>{for(const k of keys){const v=obj[keyNorm(k)];if(v!==undefined&&norm(v))return v}return ""};
+   const tcs=tcNumbers(get("TC","Processo","Nº processo","Número processo"));if(!tcs.length)continue;
+   const assunto=norm(get("ASSUNTO","Assunto do processo","Objeto"));
+   const nota=norm(get("NOTA","DECISÃO","INSTRUÇÃO/ACÓRDÃO","JULGAMENTO"));
+   const dataPauta=excelDate(get("PAUTA","PAUTA TCU","DATA PAUTA"));
+   const fase=norm(get("FASE PROCESSUAL"));
+   for(const processo of tcs)out.push({processo,dataInclusao:excelDate(get("DATA INCLUSÃO","DATA","DATA DE INCLUSÃO"))||new Date().toISOString().slice(0,10),dataPauta:/^\d{4}-\d{2}-\d{2}$/.test(dataPauta)?dataPauta:"",assunto,assuntoPauta:"",nota,origem:"Monitoramento TCU — Excel importado",ministro:norm(get("RELATOR","MINISTRO")),secao:fase,natureza:norm(get("RECURSO")),unidade:norm(get("UNIDADE TCU")),sei:norm(get("SEI")),acordao:norm(get("ACÓRDÃO","INSTRUÇÃO/ACÓRDÃO")),decisao:norm(get("DECISÃO","JULGAMENTO")),radar:norm(get("RADAR","RADAR TCU")),sof:norm(get("SOF")),relevancia:norm(get("RELEVÂNCIA"))||undefined});
+  }
+ }
+ return {out,rowsRead};
+}
+xlsxInput.onchange=async e=>{const f=e.target.files[0];if(!f)return;
+ try{const wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:false});const {out}=parseExcelModels(wb);
+  if(!out.length)throw new Error("Não foram encontrados números TC nas colunas TC ou Processo das planilhas.");
+  stageRows(out,f.name,false);
+ }catch(err){alert("Não foi possível ler o Excel: "+err.message)}finally{e.target.value=""}
+};
+
+async function parsePdfFile(file){
+ const pdfjsLib=await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.mjs");
+ pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs";
+ const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
+ let text="";for(let p=1;p<=pdf.numPages;p++){const pg=await pdf.getPage(p),c=await pg.getTextContent();text+="\n"+c.items.map(i=>i.str).join(" ")}
+ return text.replace(/\s+/g," ");
+}
+function parsePauta(text){
+ const date=(text.match(/Sessão Ordinária\s+de\s+(\d{2}\/\d{2}\/\d{4})/i)||[])[1]||"";
+ const iso=date?date.split("/").reverse().join("-"):new Date().toISOString().slice(0,10);
+ const re=/\b(\d{3}\.\d{3}\/\d{4}-\d)\s*-\s*/g; const matches=[...text.matchAll(re)],out=[];
+ for(let i=0;i<matches.length;i++){
+   const processo=matches[i][1], start=matches[i].index+matches[i][0].length,end=i+1<matches.length?matches[i+1].index:text.length,block=text.slice(start,end);
+   const nature=(block.match(/Natureza:\s*([^:]+?)(?=\s+(?:Unidade jurisdicionada|Representante|Interessado|Responsável|Representação legal):)/i)||[])[1]?.trim()||"";
+   const unidade=(block.match(/Unidade jurisdicionada:\s*(.*?)(?=\s+(?:Representação legal|Responsáveis?|Interessados?|Representante|Recorrente|Embargante|Solicitante|Revisor|1º Revisor|2º Revisor):|$)/i)||[])[1]?.trim()||"";
+   let assunto=nature;
+   if(!assunto){assunto=block.split(/\s+(?:Embargante|Embargantes|Recorrente|Recorrentes|Representante|Solicitante|Unidade jurisdicionada|Responsável|Responsáveis|Interessado|Interessados|Representação legal|Revisor|1º Revisor|2º Revisor):/i)[0].trim()}
+   const before=text.slice(Math.max(0,matches[i].index-700),matches[i].index), mm=[...before.matchAll(/Ministro(?:-Substituto)?\s+([A-ZÁÉÍÓÚÂÊÔÃÕÇ ]{4,}?)(?=\s+\d{3}\.\d{3}\/\d{4}-\d|$)/g)], ministro=mm.length?mm[mm.length-1][1].trim():"";
+   out.push({processo,dataInclusao:iso,dataPauta:iso,assunto,assuntoPauta:assunto,nota:"Importado de pauta PDF",origem:"Pauta TCU importada",ministro,secao:"Pauta importada",natureza:nature,unidade});
+ }
+ return out;
+}
+function parseMonitoringPdf(text,fileName){
+ const date=(fileName.match(/(\d{2})([a-z]{3})(\d{2})/i)||[]);const months={jan:"01",fev:"02",mar:"03",abr:"04",mai:"05",jun:"06",jul:"07",ago:"08",set:"09",out:"10",nov:"11",dez:"12"};
+ const day=date.length?`20${date[3]}-${months[date[2].toLowerCase()]||"01"}-${date[1]}`:new Date().toISOString().slice(0,10);
+ const hits=[...text.matchAll(/\b\d{3}\.\d{3}\/\d{4}-\d\b/g)];
+ return hits.map((hit,i)=>{const block=text.slice(hit.index+hit[0].length,i+1<hits.length?hits[i+1].index:Math.min(text.length,hit.index+1000)).trim();return {processo:hit[0],dataInclusao:day,dataPauta:"",assunto:block.slice(0,600),assuntoPauta:"",nota:"Extração preliminar de PDF de monitoramento; conferir texto e colunas",origem:"Monitoramento TCU — PDF importado",ministro:"",secao:"",natureza:"",unidade:""}});
+}
+pdfInput.onchange=async e=>{const f=e.target.files[0];if(!f)return;
+ try{const text=await parsePdfFile(f);let out=parsePauta(text),isPauta=out.length>0;
+  if(!out.length){out=parseMonitoringPdf(text,f.name);isPauta=false}
+  if(!out.length)throw new Error("Nenhum TC reconhecido no PDF. Arquivos digitalizados podem precisar de OCR.");
+  stageRows(out,f.name,isPauta);
+ }catch(err){alert("Não foi possível ler o PDF: "+err.message)}finally{e.target.value=""}
+};
+
+// V10: descoberta publica com triagem manual. Decisoes persistem apenas no navegador.
+const TRIAGE_KEY="cgcor_final_triage_v1";
+let triageDecisions={};
+try{const stored=JSON.parse(localStorage.getItem(TRIAGE_KEY)||"{}");if(stored&&typeof stored==="object"&&!Array.isArray(stored))triageDecisions=stored}catch(e){}
+var publicFeedRows=[];
+var discoveredRows=[];
+function saveTriage(){try{localStorage.setItem(TRIAGE_KEY,JSON.stringify(triageDecisions));return true}catch(e){alert("Falha ao salvar decisões neste navegador: "+e.message);return false}}
+function knownBeforeDiscovery(){return new Set([...INITIAL_DATA,...PRIORITY_SOF_SOURCE,...imported].map(x=>x.processo))}
+function publicRow(x){
+ const p=tcNumbers(x.processo||x.tc||"")[0];
+ if(!p)return null;
+ return {processo:p,dataInclusao:x.dataInclusao||String(x.primeiraDeteccao||"").slice(0,10)||new Date().toISOString().slice(0,10),
+ dataPauta:x.dataPauta||"",assunto:x.assunto||x.objeto||"",assuntoPauta:x.assuntoPauta||"",
+ nota:[x.resumoAutomatico,x.situacaoVerificacao].filter(Boolean).join(" | ")||x.notaPublica||"",
+ origem:"TCU — Base pública automática",ministro:x.relator||x.ministro||"",secao:x.fase||"",
+ natureza:x.natureza||"",unidade:x.unidade||"",fonteUrl:x.fonteUrl||"",fonteDetalheUrl:x.fonteDetalheUrl||"",tipoFonte:x.tipoFonte||"",prioridadeTriagem:x.prioridadeTriagem||"a_verificar",fundamentoPrioridade:x.fundamentoPrioridade||"",referenciaOrigem:x.referenciaOrigem||"",resumoAutomatico:x.resumoAutomatico||""};
+}
+function triageKey(r){return (r.tipoFonte==="pedidos_congresso"?"SCN:":"TC:")+r.processo}
+function triageStatus(r){return triageDecisions[triageKey(r)]?.status||triageDecisions[r.processo]?.status||"pending"}
+function approvedPublicRows(){
+ const known=knownBeforeDiscovery();
+ return discoveredRows.filter(r=>r.tipoFonte!=="pedidos_congresso"&&(known.has(r.processo)||triageStatus(r)==="approved"));
+}
+function refreshAfterTriage(){
+ publicFeedRows=approvedPublicRows();
+ data=buildData();refreshFilters();applyFilters();renderTriage();
+}
+function setTriageDecision(p,status){
+ if(!["approved","rejected","pending"].includes(status))return;
+ if(status==="pending")delete triageDecisions[p];
+ else triageDecisions[p]={status,updatedAt:new Date().toISOString()};
+ if(saveTriage())refreshAfterTriage();
+}
+function renderTriage(){
+ const known=knownBeforeDiscovery();
+ const candidates=discoveredRows.filter(r=>r.tipoFonte==="pedidos_congresso"||!known.has(r.processo)).sort((a,b)=>({alta:0,a_verificar:1,contextual:2}[a.prioridadeTriagem]??3)-({alta:0,a_verificar:1,contextual:2}[b.prioridadeTriagem]??3));
+ const counts={pending:0,approved:0,rejected:0};
+ for(const r of candidates){const status=triageStatus(r);counts[status]++}
+ document.getElementById("triagePending").textContent=counts.pending;
+ document.getElementById("triageApproved").textContent=counts.approved;
+ document.getElementById("triageRejected").textContent=counts.rejected;
+ const view=document.getElementById("triageView").value;
+ const q=document.getElementById("triageSearch").value.trim().toLowerCase();
+ const shown=candidates.filter(r=>(view==="all"||triageStatus(r)===view)&&
+ (!q||[r.processo,r.assunto,r.nota,r.ministro].join(" ").toLowerCase().includes(q)));
+ const list=document.getElementById("triageList");list.replaceChildren();
+ if(!shown.length){const p=document.createElement("p");p.className="muted";p.textContent=candidates.length?"Nenhum processo corresponde aos filtros.":"Nenhum novo processo público identificado nesta coleta.";list.append(p);return}
+ const fragment=document.createDocumentFragment();
+ for(const r of shown.slice(0,100)){
+  const item=document.createElement("article");item.className="triage-item";
+  const title=document.createElement("strong");title.textContent=(r.tipoFonte==="pedidos_congresso"?"Referência SCN ":"TC ")+r.processo;
+  const description=document.createElement("p");description.textContent=r.assunto||"Assunto não disponibilizado na fonte.";
+  const extra=document.createElement("p");extra.className="muted";extra.textContent=[r.tipoFonte==="pedidos_congresso"?"Solicitação do Congresso ao TCU; referência SCN não comprova número de processo TCU. Aprovação registra interesse, mas não incorpora à base de TCs.":null,"Prioridade: "+({alta:"Alta — indício temático",a_verificar:"A verificar — pauta sem assunto",contextual:"Contextual — solicitação parlamentar"}[r.prioridadeTriagem]||"A verificar"),r.ministro&&"Relator: "+r.ministro,r.nota].filter(Boolean).join(" · ");
+  const actions=document.createElement("div");actions.className="triage-actions";
+  for(const [status,label,cls] of [["approved","✓ Aprovar para acompanhamento","approve"],["rejected","✕ Descartar","reject"],["pending","↺ Voltar para pendentes",""]]){
+   if(triageStatus(r)===status)continue;
+   const btn=document.createElement("button");btn.textContent=label;btn.className=cls;btn.type="button";
+   btn.onclick=()=>setTriageDecision(triageKey(r),status);actions.append(btn);
+  }
+  const detail=r.fonteDetalheUrl;
+  if(/^https:\/\//.test(detail)){const a=document.createElement("a");a.href=detail;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Consultar proposição específica";actions.append(a)}
+  else{const note=document.createElement("span");note.className="muted";note.textContent="Link específico indisponível; não usar a API geral como comprovante.";actions.append(note)}
+  item.append(title,description,extra,actions);fragment.append(item);
+ }
+ list.append(fragment);
+ if(shown.length>100){const p=document.createElement("p");p.className="muted";p.textContent=`Exibindo 100 de ${shown.length} registros. Refine a busca.`;list.append(p)}
+}
+document.getElementById("triageView").onchange=renderTriage;
+document.getElementById("triageSearch").oninput=renderTriage;
+document.getElementById("triageExportBtn").onclick=()=>{
+ const blob=new Blob([JSON.stringify({versao:10,exportadoEm:new Date().toISOString(),decisoes:triageDecisions},null,2)],{type:"application/json"});
+ const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="triagem_cgcor_decisoes.json";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+document.getElementById("triageImportInput").onchange=async e=>{
+ const f=e.target.files?.[0];if(!f)return;
+ try{
+  const obj=JSON.parse(await f.text());const decisions=obj.decisoes;
+  if(!decisions||typeof decisions!=="object"||Array.isArray(decisions))throw Error("Arquivo sem campo 'decisoes'.");
+  const valid={};for(const [p,d] of Object.entries(decisions)){
+   if((tcNumbers(p.replace(/^(TC|SCN):/,""))[0]===p.replace(/^(TC|SCN):/,""))&&["approved","rejected"].includes(d?.status))valid[p]={status:d.status,updatedAt:String(d.updatedAt||"")};
+  }
+  if(!confirm(`Importar ${Object.keys(valid).length} decisão(ões)? Decisões coincidentes serão substituídas.`))return;
+  triageDecisions={...triageDecisions,...valid};if(saveTriage())refreshAfterTriage();
+ }catch(err){alert("Erro ao importar decisões: "+err.message)}finally{e.target.value=""}
+};
+async function refreshPublicFeed(){
+ const status=document.getElementById("publicFeedStatus");status.textContent="Consultando arquivo público...";
+ try{
+  const res=await fetch("./dados/processos_publicos.json",{cache:"no-store"});if(!res.ok)throw new Error(`HTTP ${res.status}`);
+  const payload=await res.json();const records=Array.isArray(payload)?payload:(payload.processos||[]);
+  const unique=new Map();for(const x of records){const r=publicRow(x);if(r)unique.set(triageKey(r),r)}
+  discoveredRows=[...unique.values()];
+  document.getElementById("autoTotal").textContent=discoveredRows.length;
+  document.getElementById("autoNew").textContent=(payload.novosProcessos||[]).length;
+  const changes=payload.alteracoesRegistrosPublicos||payload.movimentacoesDetectadas||[];
+  document.getElementById("publicChangesStatus").textContent=`📋 ${changes.length} alteração(ões) em registros públicos pendentes de verificação. Movimentações processuais confirmadas por esta coleta: 0. Pauta mais recente: ${payload.dataPautaMaisRecente||"não informada"}.`;
+  const tracked=payload.acompanhamentoPrioritario||[];
+  const trackedBox=document.getElementById("trackedPublicStatus");
+  trackedBox.replaceChildren();
+  if(tracked.length){
+   const heading=document.createElement("strong");heading.textContent=`🎯 Processos acompanhados (${tracked.length}): `;trackedBox.append(heading);
+   tracked.forEach((t,i)=>{if(i)trackedBox.append(document.createTextNode(" · "));const label=document.createElement("span");label.textContent=`${t.processo}: ${t.situacao==="identificado_na_coleta"?"identificado em pauta pública":"não identificado nas fontes consultadas"}`;trackedBox.append(label)});
+   const disclaimer=document.createElement("div");disclaimer.textContent="Ausência nas fontes consultadas não significa ausência de movimentação processual.";trackedBox.append(disclaimer);
+  }
+  document.getElementById("autoState").textContent=({atualizado:"Atualizado",parcial:"Parcial",falha_coleta:"Falha",sem_fontes_configuradas:"Configurar"})[payload.estado]||"Verificar";
+  const summaryBox=document.getElementById("autoSummaries");summaryBox.replaceChildren();
+  const highlights=records.filter(x=>x.resumoAutomatico && x.prioridadeTriagem==="prioritario").slice(0,4);
+  if(highlights.length){
+   const head=document.createElement("strong");head.textContent="Resumos automáticos (triagem indicativa):";summaryBox.append(head);
+   const ul=document.createElement("ul");for(const x of highlights){const li=document.createElement("li");const b=document.createElement("b");b.textContent=(x.processo||"")+" — ";li.append(b,document.createTextNode(x.resumoAutomatico||""));if(x.fonteUrl&&/^https:\/\//.test(x.fonteUrl)){const a=document.createElement("a");a.href=x.fonteDetalheUrl||x.fonteUrl;a.target="_blank";a.rel="noopener noreferrer";a.textContent=x.fonteDetalheUrl?" Proposição específica":" Base geral (API)";li.append(a)}ul.append(li)}summaryBox.append(ul);
+  }else summaryBox.textContent="Nenhum processo prioritário identificado na coleta. Consulte a triagem para outros registros públicos.";
+  refreshAfterTriage();
+  status.textContent=`Base pública: ${discoveredRows.length} registros (${discoveredRows.filter(r=>r.tipoFonte!=="pedidos_congresso").length} TCs e ${discoveredRows.filter(r=>r.tipoFonte==="pedidos_congresso").length} referências SCN). Última execução: ${payload.atualizadoEm||"não executada"}. Estado: ${payload.estado||"desconhecido"}. ${payload.erros?.length?"Fontes com falha: "+payload.erros.map(e=>e.fonte+" ("+e.erro+")").join("; "):""}`;
+ }catch(err){
+  document.getElementById("publicChangesStatus").textContent="Não foi possível verificar alterações nesta consulta.";
+  status.textContent="Base pública indisponível. O painel continua operando com os dados locais. ("+err.message+")";
+  renderTriage();
+ }
+}
+document.getElementById("refreshPublicBtn").onclick=()=>location.reload();
+renderTriage();
+
+
+
+function currentFilterSummary(){
+ const parts=[];
+ const pairs=[["Busca",fSearch.value],["Origem",fOrigem.value],["Ano",fAno.value],["Tipo/Natureza",fTipo.value],["Relator",fMinistro.value],["Relevância SOF",fRelevancia.value],["Risco/Atenção SOF",fAtencao.value],["Situação na pauta",fPautaStatus.value],["Interesse orçamentário SOF",fSofInterest.value]];
+ pairs.forEach(([k,v])=>{if(norm(v))parts.push(`${k}: ${v}`)});
+ return parts.length?parts.join(" | "):"Sem filtros - visão consolidada completa";
+}
+function pdfSafeText(v,max=140){let t=norm(v).replace(/\s+/g," ");return t.length>max?t.slice(0,max-1)+"…":t}
+function riskRank(v){const x=norm(v).toLowerCase();if(x.includes("crít"))return 5;if(x==="alta")return 4;if(x==="média"||x==="media")return 3;if(x==="baixa")return 2;if(x.includes("sem risco"))return 1;return 0}
+function addReportHeader(doc,title,stamp,pageNo){
+ const W=doc.internal.pageSize.getWidth();
+ doc.setFillColor(15,61,145);doc.rect(0,0,W,22,"F");
+ doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(14);doc.text(title,14,10);
+ doc.setFont("helvetica","normal");doc.setFontSize(8.5);doc.text(`Secretaria de Orçamento Federal | Snapshot: ${stamp}`,14,16);
+ doc.text(`Página ${pageNo}`,W-14,16,{align:"right"});doc.setTextColor(23,32,51);
+}
+async function generateExecutivePdf(){
+ const btn=document.getElementById("reportPdfBtn");
+ if(!window.jspdf?.jsPDF){alert("A biblioteca de geração de PDF ainda não foi carregada. Verifique a conexão com a internet e tente novamente.");return}
+ btn.disabled=true;const old=btn.textContent;btn.textContent="⏳";
+ try{
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const now=new Date();const stamp=now.toLocaleString("pt-BR");const dateFile=now.toISOString().slice(0,19).replaceAll(":","-");
+  const title="Relatório Executivo - Monitoramento de Processos do TCU";
+  addReportHeader(doc,title,stamp,1);
+  doc.setFontSize(9);doc.setTextColor(80,90,110);doc.text("Filtros aplicados: "+pdfSafeText(currentFilterSummary(),230),14,29);
+  const base=filtered;
+  const kpis=[
+    ["Processos na visão",base.length],["Prioritários SOF na pauta",base.filter(x=>x.naPautaPrioritaria).length],
+    ["Prioritários SOF",base.filter(x=>(x.origem||"").includes("Base SOF")).length],
+    ["Em pauta",base.filter(x=>["Novo na pauta","Permaneceu em pauta"].includes(x.statusPauta)).length],
+    ["Base SOF + pauta",base.filter(x=>(x.origem||"").includes("Base SOF")&&["Novo na pauta","Permaneceu em pauta"].includes(x.statusPauta)).length],
+    ["Potencial interesse SOF",base.filter(x=>x.relevanciaSOF==="Potencial interesse SOF").length],
+    ["Risco crítico/alto",base.filter(x=>["Crítica","Alta"].includes(x.atencaoSOF)).length]
+  ];
+  const W=doc.internal.pageSize.getWidth();const startX=14,gap=3,cardW=(W-28-gap*6)/7;
+  kpis.forEach(([label,value],i)=>{const x=startX+i*(cardW+gap);doc.setFillColor(246,248,252);doc.roundedRect(x,35,cardW,21,2,2,"F");doc.setTextColor(37,99,235);doc.setFont("helvetica","bold");doc.setFontSize(15);doc.text(String(value),x+4,45);doc.setTextColor(90,100,120);doc.setFont("helvetica","normal");doc.setFontSize(7);doc.text(doc.splitTextToSize(label,cardW-8),x+4,50)});
+  // charts snapshot
+  const chartIds=["chartOrigem","chartTipo","chartMinistro"];let cx=14;
+  chartIds.forEach((id)=>{const c=document.getElementById(id);if(!c)return;try{const img=c.toDataURL("image/png",1);doc.addImage(img,"PNG",cx,63,82,48);cx+=88}catch(e){}});
+  doc.setFont("helvetica","bold");doc.setFontSize(11);doc.setTextColor(23,32,51);doc.text("Processos com maior atenção gerencial",14,120);
+  const priority=[...base].sort((a,b)=>riskRank(b.atencaoSOF)-riskRank(a.atencaoSOF)||norm(a.processo).localeCompare(norm(b.processo))).slice(0,8);
+  doc.autoTable({startY:124,head:[["Processo","Risco SOF","Relevância SOF","Assunto / objeto","Relator"]],body:priority.map(r=>[r.processo,r.atencaoSOF||"—",r.relevanciaSOF||"—",pdfSafeText(r.assunto||r.assuntoPauta,100),r.ministro||"—"]),styles:{fontSize:7,cellPadding:2,valign:"top"},headStyles:{fillColor:[37,99,235],textColor:255},columnStyles:{0:{cellWidth:30},1:{cellWidth:27},2:{cellWidth:37},3:{cellWidth:130},4:{cellWidth:45}},margin:{left:14,right:14}});
+  let pageNo=2;doc.addPage();addReportHeader(doc,title,stamp,pageNo);
+  doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("Distribuição de risco e relevância na visão atual",14,30);
+  const risks=countBy(base,"atencaoSOF"),rels=countBy(base,"relevanciaSOF");
+  doc.autoTable({startY:35,head:[["Risco / Atenção SOF","Quantidade"]],body:risks,styles:{fontSize:8},headStyles:{fillColor:[239,68,68]},tableWidth:120,margin:{left:14}});
+  doc.autoTable({startY:35,head:[["Relevância SOF","Quantidade"]],body:rels,styles:{fontSize:8},headStyles:{fillColor:[16,185,129]},tableWidth:120,margin:{left:158}});
+  const y=Math.max(doc.lastAutoTable?.finalY||70,70)+10;doc.setFont("helvetica","bold");doc.setFontSize(11);doc.text("Base consolidada - visão filtrada",14,y);
+  const rows=[...base].sort((a,b)=>riskRank(b.atencaoSOF)-riskRank(a.atencaoSOF)||norm(a.processo).localeCompare(norm(b.processo)));
+  doc.autoTable({startY:y+4,head:[["Processo","Inclusão","Situação pauta","Risco SOF","Relevância SOF","Assunto","Nota / justificativa"]],body:rows.map(r=>[r.processo,isoBR(r.dataInclusao),r.statusPauta||"—",r.atencaoSOF||"—",r.relevanciaSOF||"—",pdfSafeText(r.assunto||r.assuntoPauta,95),pdfSafeText(r.justificativaSOF||r.nota,75)]),styles:{fontSize:6.2,cellPadding:1.6,valign:"top"},headStyles:{fillColor:[15,61,145],textColor:255},columnStyles:{0:{cellWidth:25},1:{cellWidth:18},2:{cellWidth:32},3:{cellWidth:24},4:{cellWidth:34},5:{cellWidth:91},6:{cellWidth:45}},margin:{left:14,right:14,top:27,bottom:12},didDrawPage:(d)=>{if(d.pageNumber>1){const absolute=pageNo+d.pageNumber-1;addReportHeader(doc,title,stamp,absolute)}}});
+  const finalPages=doc.getNumberOfPages();for(let i=1;i<=finalPages;i++){doc.setPage(i);doc.setTextColor(115,125,145);doc.setFontSize(7);doc.text("Documento gerado a partir do estado do dashboard no momento da emissão. Avaliações SOF editáveis prevalecem sobre a triagem automática.",14,202)}
+  doc.save(`relatorio_executivo_cgcor_final_local_${dateFile}.pdf`);
+ }catch(err){console.error(err);alert("Não foi possível gerar o relatório executivo: "+err.message)}finally{btn.disabled=false;btn.textContent=old}
+}
+
+exportBtn.onclick=()=>{
+ const cols=["processo","dataInclusao","dataPauta","statusPauta","statusPautaData","sofInterest","sofScore","sofRationale","prioritarioSOF","naPautaPrioritaria","fichaInteligenciaSOF","origem","assunto","nota","tipo","ministro","unidade","relevancia","atencao","relevanciaSOF","atencaoSOF","justificativaSOF"];
+ const csv=[cols.join(";"),...filtered.map(r=>cols.map(c=>`"${norm(r[c]).replaceAll('"','""')}"`).join(";"))].join("\n");
+ const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}),a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="processos_cgcor_final_local_filtrados.csv";a.click();URL.revokeObjectURL(a.href);
+};
+resetBtn.onclick=()=>{if(confirm("Remover apenas os dados adicionados por upload e voltar à base inicial?")){localStorage.removeItem(LS_KEY);localStorage.removeItem(PAUTA_VERSIONS_KEY);imported=[];pautaVersions=[initialPautaVersion()];localStorage.setItem(PAUTA_VERSIONS_KEY,JSON.stringify(pautaVersions));data=buildData();refreshFilters();filtered=[...data];render()}};
+resetAssessBtn.onclick=()=>{if(confirm("Restaurar todas as avaliações SOF para as classificações automáticas?")){assessments={};localStorage.removeItem(ASSESS_KEY);data=buildData();refreshFilters();filtered=[...data];render()}};
+restoreDeletedBtn.onclick=restoreDeletedProcesses;
+priorityAgendaBtn.onclick=()=>{
+ const matches=priorityMatches();
+ if(!matches.length){
+   mTitle.textContent="🎯 Processos prioritários SOF na pauta";
+   mBody.innerHTML=`<div class="alert"><b>Nenhum dos ${PRIORITY_SOF_SET.size} processos prioritários da planilha SOF foi localizado na versão atual da pauta.</b><br><br>Versão comparada: ${escapeHtml(activePautaVersion()?.fileName||"pauta atual")} · sessão ${isoBR(activePautaVersion()?.sessionDate)}.</div>`;
+   modal.classList.add("show");return;
+ }
+ const currentData=new Map(data.map(r=>[r.processo,r]));
+ mTitle.textContent=`🎯 Prioritários SOF localizados na pauta (${matches.length})`;
+ mBody.innerHTML=`<div class="alert" style="background:#ecfdf3;border-color:#abefc6;color:#05603a"><b>ATENÇÃO SOF:</b> foram encontrados <b>${matches.length}</b> processos prioritários na pauta atual. Esta é a verificação central do dashboard.</div>
+ <div style="margin-top:14px">${matches.map(x=>{const r=currentData.get(x.processo)||x;return `<div class="assessment-box" style="margin-bottom:10px;border-left:5px solid #039855"><div style="display:flex;justify-content:space-between;gap:10px"><b style="font-size:16px">🎯 TC ${escapeHtml(x.processo)}</b><button class="btn" onclick="closeModal();setTimeout(()=>showDetail('${escapeHtml(x.processo)}'),30)">Abrir análise</button></div><div style="margin-top:7px">${escapeHtml(x.assunto||r.assunto||"")}</div>${x.sei?`<div class="muted" style="margin-top:5px">SEI: ${escapeHtml(x.sei)}</div>`:""}${x.nota?`<div class="muted">Nota: ${escapeHtml(x.nota)}</div>`:""}${(()=>{const t=tcuRecord(x.processo);return `<div class="muted" style="margin-top:7px"><b>Tema:</b> ${escapeHtml(t.tema||r.assuntoPauta||r.assunto||"Não informado")}<br><b>Relator:</b> ${escapeHtml(t.relator||r.ministro||"Não informado")}<br><b>Unidade técnica TCU:</b> ${escapeHtml(t.unidadeResponsavel||"Não informada")}<br><b>UJ:</b> ${escapeHtml(t.unidadeJurisdicionada||r.unidade||"Não informada")}<br><b>Interessados:</b> ${escapeHtml(t.interessados||"Não informados")}<br><b>SEI:</b> ${escapeHtml(t.sei||x.sei||"Não informado")}<br><b>Encaminhamento:</b> ${escapeHtml(t.encaminhamento||"Não informado")}</div>`})()}<div style="margin-top:7px">${tag(r.statusPauta||"Em pauta","green")} ${tag(r.atencaoSOF||"Média",["Crítica","Alta"].includes(r.atencaoSOF)?"red":"blue")}</div></div>`}).join("")}</div>`;
+ modal.classList.add("show");
+ // Also make the main table immediately show only these records after closing modal.
+ const set=new Set(matches.map(x=>x.processo));filtered=data.filter(r=>set.has(r.processo));render();
+};
+pautaHistoryBtn.onclick=()=>{
+ const cur=activePautaVersion(),prev=previousPautaVersion();
+ const rows=pautaVersions.map((v,i)=>`<div class="detail" style="margin-bottom:10px"><b>Versão ${i+1} · sessão ${isoBR(v.sessionDate)}</b>${escapeHtml(v.fileName||"Pauta")} · ${v.processes.length} processos · importada em ${new Date(v.importedAt).toLocaleString("pt-BR")}</div>`).join("");
+ mTitle.textContent="Histórico de versões das pautas";
+ mBody.innerHTML=`<div class="alert">As versões são preservadas no navegador. Quando uma nova versão da <b>mesma sessão</b> é importada, o painel identifica automaticamente processos novos e retirados.</div><div style="margin-top:14px">${rows}</div>`;
+ modal.classList.add("show");
+};
+
+async function generateBriefSofPdf(){
+ const jsPDFCtor=window.jspdf&&window.jspdf.jsPDF;if(!jsPDFCtor){alert("Não foi possível carregar a biblioteca de PDF. Verifique a conexão com a internet e recarregue o painel.");return}if(!jsPDFCtor.API.autoTable){alert("O componente de tabelas do PDF não foi carregado. Recarregue o painel com acesso à internet.");return}
+ const base=filtered.length?filtered:data;
+ // Resumo privilegia aquilo que a equipe efetivamente customizou.
+ const custom=base.filter(r=>r.naPautaPrioritaria||r.avaliacaoManual||r.justificativaSOF||intelCard(r.processo).updatedAt||["Crítica","Alta"].includes(r.atencaoSOF)||r.statusPauta==="Retirado de pauta"||r.statusPauta==="Novo na pauta");
+ const rows=custom.length?custom:base.filter(r=>r.sofInterest==="Alto").slice(0,20);
+ const doc=new jsPDFCtor({orientation:"landscape",unit:"mm",format:"a4"});
+ const now=new Date(),stamp=now.toLocaleString("pt-BR");
+ doc.setFont("helvetica","bold");doc.setFontSize(17);doc.text("SOF | Informe Executivo Resumido – TCU",12,14);
+ doc.setFont("helvetica","normal");doc.setFontSize(9);doc.text(`Snapshot: ${stamp} | Registros selecionados: ${rows.length}`,12,20);
+ const filters=currentFilterSummary();if(filters.length)doc.text(`Filtros: ${filters}`.slice(0,180),12,25);
+ const movements=base.filter(r=>["Novo na pauta","Retirado de pauta"].includes(r.statusPauta));
+ doc.autoTable({startY:30,theme:"grid",head:[["Processo","Movimento","Risco SOF","Interesse SOF","Assunto","Justificativa/Nota"]],
+ body:rows.map(r=>[r.processo,r.statusPauta,r.atencaoSOF,`${r.sofInterest} ${r.sofScore}/10`,pdfSafeText(r.assunto,70),pdfSafeText(intelSummaryText(r)||r.justificativaSOF||r.nota,90)]),
+ styles:{fontSize:7,cellPadding:1.6,valign:"top"},headStyles:{fillColor:[31,78,121]},columnStyles:{0:{cellWidth:27},1:{cellWidth:31},2:{cellWidth:20},3:{cellWidth:24},4:{cellWidth:78},5:{cellWidth:92}}});
+ let y=doc.lastAutoTable.finalY+7;
+ if(y<185){doc.setFont("helvetica","bold");doc.setFontSize(10);doc.text(`Movimentações de pauta no recorte: ${movements.length}`,12,y);}
+ const filename=`informe_executivo_resumido_SOF_${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}_${String(now.getHours()).padStart(2,"0")}${String(now.getMinutes()).padStart(2,"0")}.pdf`;
+ doc.save(filename);
+}
+const _briefPdfBtn=document.getElementById("briefPdfBtn");
+const _reportPdfBtn=document.getElementById("reportPdfBtn");
+if(_briefPdfBtn)_briefPdfBtn.addEventListener("click",generateBriefSofPdf);
+if(_reportPdfBtn)_reportPdfBtn.addEventListener("click",()=>window.cgcorReport());
+refreshFilters();filtered=[...data];updateDeletedCount();render();
+</script>
+<script>
+(()=>{
+const $=id=>document.getElementById(id), key='cgcor-final-pesquisa-v1';
+const norm=s=>String(s||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+const parse=s=>{const chunks=s.replace(/^\uFEFF/,'').split(/(?=^"\d{3}\.\d{3}\/\d{4}-\d - )/m).slice(1);const rx=/^"(\d{3}\.\d{3}\/\d{4}-\d) - (.*?)",\s*"(.*?)",\s*"(.*?)",\s*"(Aberto|Encerrado)",\s*"(.*?)",\s*"(https:\/\/[^"\s]+\.PROC)",\s*"(.*?)"\s*$/s;let rows=[],bad=0;for(const c of chunks){let m=c.match(rx);if(!m||m[7].match(/(\d+)\.PROC$/)?.[1]!==m[1].replace(/\D/g,'').replace(/^0+/,'')){bad++;continue}let [_,id,tipo,relator,assunto,estado,unidades,url,extra]=m;rows.push({id,tipo,relator,assunto,estado,unidades})}return {rows,bad}};
+if(typeof module!=='undefined'){module.exports={parse};return}
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const link=id=>'https://pesquisa.apps.tcu.gov.br/documento/processo/*/NUMEROSOMENTENUMEROS%253A'+id.replace(/\D/g,'').replace(/^0+/,'')+'/DTAUTUACAOORDENACAO%2520desc%252C%2520NUMEROCOMZEROS%2520desc/0';
+let source="local", st={rows:[],changes:[],fresh:[],decisions:{},history:[],date:''}, filter='aberto',page=0;try{st=JSON.parse(localStorage.getItem(key))||st}catch(e){}
+const persist=next=>{try{localStorage.setItem(key,JSON.stringify(next));st=next;return true}catch(e){st=next;alert('Armazenamento local insuficiente. A atualização está em memória; gere a base pública e o backup antes de fechar.');return true}};
+const tags=r=>{let u=norm(r.unidades);return [['SOF',/secretaria de orcamento federal|\bsof\/mpo\b/],['MPO',/ministerio do planejamento e orcamento|\/mpo\b/],['AECI',/assessoria especial de controle interno/],['SE',/secretaria executiva.*planejamento|\bse\/mpo\b/],['SEPLAN',/secretaria nacional de planejamento|\bseplan\/mpo\b/],['SMA',/secretaria de monitoramento e avaliacao|\bsma\/mpo\b/]].filter(x=>x[1].test(u)).map(x=>x[0])};
+const relevant=r=>tags(r).length||/orcamento federal|politica fiscal|regras fiscais|execucao orcamentaria|responsabilidade fiscal/.test(norm(r.assunto));
+const a=r=>`<a target="_blank" rel="noopener noreferrer" href="${link(r.id)}">${esc(r.id)} ↗</a>`;
+function render(){let rows=st.rows,open=rows.filter(r=>r.estado==='Aberto'),q=norm($('piSearch').value);$('piStatus').textContent=st.date?`Última importação: ${new Date(st.date).toLocaleString('pt-BR')} • ${rows.length} registros • ${source==="shared"?"base compartilhada publicada":"base local (ainda não publicada)"}`:'Nenhuma importação realizada';let metrics=[['aberto','Processos abertos',open.length],['interesse','Potencial interesse',open.filter(relevant).length],...['MPO','SOF','AECI','SE','SEPLAN','SMA'].map(t=>[t,t,open.filter(r=>tags(r).includes(t)).length]),['pendente','Triagem pendente',open.filter(r=>relevant(r)&&!st.decisions[r.id]).length],['todos','Todos os registros',rows.length]];$('piMetrics').innerHTML=metrics.map(([k,l,v])=>`<button data-filter="${k}" class="piMetric ${filter===k?'active':''}"><b>${v}</b>${l}</button>`).join('');let lookup=new Map(rows.map(r=>[r.id,r]));$('piNew').innerHTML=st.fresh.slice(0,100).map(id=>lookup.get(id)).filter(Boolean).map(r=>`<p>${a(r)} — ${esc(r.assunto||r.tipo)}</p>`).join('')||'Nenhum novo registro nesta comparação.';$('piChanges').innerHTML=st.changes.slice(0,100).map(c=>`<p>${a(c)} • ${esc(c.field)}: ${esc(c.before)} → ${esc(c.after)}</p>`).join('')||'Nenhuma alteração comparável.';let selected=rows.filter(r=>(filter==='todos'||(r.estado==='Aberto'&&(filter==='aberto'||filter==='interesse'&&relevant(r)||filter==='pendente'&&relevant(r)&&!st.decisions[r.id]||tags(r).includes(filter)))||filter.startsWith('rel:')&&r.relator===filter.slice(4)||filter.startsWith('tipo:')&&r.tipo===filter.slice(5))&&norm(Object.values(r).join(' ')).includes(q));let count=(field)=>Object.entries(open.reduce((o,r)=>(o[r[field]||'Não informado']=(o[r[field]||'Não informado']||0)+1,o),{})).sort((a,b)=>b[1]-a[1]).slice(0,12);for(const [id,field,prefix] of [['piRel','relator','rel:'],['piTipos','tipo','tipo:']])$(id).innerHTML=count(field).map(([n,v])=>`<button class="piBar" data-filter="${esc(prefix+n)}">${esc(n)} <b>${v}</b><span style="width:${100*v/Math.max(1,open.length)}%"></span></button>`).join('');page=Math.min(page,Math.max(0,Math.ceil(selected.length/40)-1));$('piCount').textContent=`${selected.length} registros • página ${page+1} de ${Math.max(1,Math.ceil(selected.length/40))}`;$('piRows').innerHTML=selected.slice(page*40,page*40+40).map(r=>`<tr><td>${a(r)}<small>${esc(tags(r).join(' · '))}</small></td><td><b>${esc(r.assunto||'Assunto não informado')}</b><small>${esc(r.tipo)} · ${esc(r.unidades)}</small></td><td>${esc(r.relator||'Não informado')}<small>${esc(r.estado)}</small></td><td><select data-id="${r.id}">${[['','Pendente'],['interesse','Interesse CGCOR'],['descartado','Descartado']].map(([v,l])=>`<option value="${v}" ${(st.decisions[r.id]||'')===v?'selected':''}>${l}</option>`).join('')}</select></td></tr>`).join('')}
+$('piFile').onchange=async e=>{try{let f=e.target.files[0];if(!f)return;let b=await f.arrayBuffer(),s;try{s=new TextDecoder('utf-8',{fatal:true}).decode(b)}catch{ s=new TextDecoder('windows-1252').decode(b)}let {rows,bad}=parse(s);if(!rows.length||bad){alert(`Importação interrompida: ${rows.length} válidos, ${bad} inconsistentes.`);return}rows=[...new Map(rows.map(r=>[r.id,r])).values()];let old=new Map(st.rows.map(r=>[r.id,r])),changes=[],fresh=[];for(const r of rows){let p=old.get(r.id);if(!p){if(st.date)fresh.push(r.id);continue}for(const field of ['tipo','relator','assunto','estado','unidades'])if(p[field]!==r[field])changes.push({id:r.id,field,before:p[field],after:r[field]})}let date=new Date().toISOString();let next={...st,rows,date,changes,fresh,history:[...st.history,{date,total:rows.length,changes,fresh}]};if(persist(next)){source="local";page=0;render()}}finally{e.target.value=''}};
+$('piModule').onclick=e=>{let b=e.target.closest('[data-filter]');if(b){filter=b.dataset.filter;page=0;render()}};$('piRows').onchange=e=>{if(e.target.dataset.id){let next={...st,decisions:{...st.decisions,[e.target.dataset.id]:e.target.value}};persist(next);render()}};$('piSearch').oninput=()=>{page=0;render()};$('piPrev').onclick=()=>{page=Math.max(0,page-1);render()};$('piNext').onclick=()=>{page++;render()};$('piBackup').onclick=()=>{let u=URL.createObjectURL(new Blob([JSON.stringify(st)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download='cgcor-pesquisa-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)} ;
+$('piPublish').onclick=()=>{if(!st.date||!st.rows.length){alert('Importe o CSV primeiro.');return}const {rows,date,changes,fresh,history}=st;const u=URL.createObjectURL(new Blob([JSON.stringify({rows,date,changes,fresh,history})],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download='pesquisa_diaria.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+async function shared(){if(location.protocol==='file:')return;try{const r=await fetch('dados/pesquisa_diaria.json',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const v=await r.json();if(!Array.isArray(v.rows)||!v.rows.length||!Number.isFinite(Date.parse(v.date))||!Array.isArray(v.changes)||!Array.isArray(v.fresh)||!Array.isArray(v.history))throw Error('Base inválida');if(!st.date||Date.parse(v.date)>=Date.parse(st.date)){const next={...v,decisions:st.decisions||{}};source="shared";st=next;try{localStorage.setItem(key,JSON.stringify(next))}catch{}render()} }catch(e){$('piStatus').textContent+=' • Base compartilhada indisponível: '+e.message}};
+window.cgcorReport=()=>{if(!window.jspdf?.jsPDF){alert('Biblioteca PDF indisponível.');return}if(!st.rows.length){alert('Carregue a base pública primeiro.');return}const doc=new window.jspdf.jsPDF({orientation:'landscape',unit:'mm',format:'a4'});const open=st.rows.filter(r=>r.estado==='Aberto'),interest=open.filter(relevant);const metrics=[['Registros',st.rows.length],['Abertos',open.length],['Potencial interesse',interest.length],['MPO',open.filter(r=>tags(r).includes('MPO')).length],['SOF',open.filter(r=>tags(r).includes('SOF')).length],['Novos registros',st.fresh.length],['Campos alterados',st.changes.length]];const table=(head,body,y)=>doc.autoTable({startY:y,head:[head],body,margin:{left:14,right:14,top:30,bottom:15},styles:{fontSize:8,overflow:'linebreak',cellPadding:2},headStyles:{fillColor:[15,61,145]},rowPageBreak:'avoid'});doc.setFontSize(11);doc.text('Base: '+new Date(st.date).toLocaleString('pt-BR')+' | '+(source==='shared'?'Publicada':'Local'),14,34);table(['Indicador','Quantidade'],metrics,40);let y=doc.lastAutoTable.finalY+8;doc.setFontSize(9);doc.text('Triagem indicativa por assunto/unidade. Alterações de campos não equivalem a movimentações oficiais.',14,y);doc.text('Exportação limitada ao universo pesquisado; ausência de registro não comprova encerramento.',14,y+5);doc.addPage();table(['Processo','Assunto','Relator','Unidades'],interest.map(r=>[r.id,r.assunto||r.tipo,r.relator,r.unidades]),32);if(st.fresh.length||st.changes.length){doc.addPage();table(['Processo','Evento','Antes','Depois'],[...st.fresh.map(id=>[id,'Novo na exportação','','']),...st.changes.map(c=>[c.id,c.field,c.before,c.after])],32)}for(let i=1;i<=doc.getNumberOfPages();i++){doc.setPage(i);addReportHeader(doc,'Relatório Executivo - Inteligência Processual TCU',new Date().toLocaleString('pt-BR'),i);doc.setFontSize(8);doc.text('Fonte: Pesquisa Integrada do TCU | Dados públicos | CGCOR/SOF/MPO',14,202)}doc.save('relatorio_executivo_cgcor.pdf')};
+render();shared();
+})();
+
+</script>
+</body>
+</html>
